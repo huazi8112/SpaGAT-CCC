@@ -1,0 +1,11 @@
+"","L2-L3-eNeuron_mural","Lhx6-iNeuron_mural","Adarb2-iNeuron_mural","microglia_mural","endothelial_mural","astrocytes_mural","OPC_mural","L4-eNeuron_mural","L5-eNeuron_mural","L6-eNeuron_mural","Olig_mural"
+"Lig_bk",16,20,17,20,23,23,24,17,20,19,23
+"Rec_bk",32,32,32,32,32,32,32,32,32,32,32
+"ICG_bk",19,19,19,19,19,19,19,19,19,19,19
+"LRpair",4,2,2,9,24,12,7,4,4,3,9
+"RecTFpair",6,3,4,17,20,11,7,7,7,6,13
+"TFTGpair",11,11,11,16,11,11,11,11,11,11,11
+"Ligand",3,2,2,7,12,6,4,3,3,2,6
+"Receptor",3,2,2,8,11,6,4,4,4,3,7
+"TF",2,2,2,4,2,2,2,2,2,2,2
+"TG",10,10,10,11,10,10,10,10,10,10,10

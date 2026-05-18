@@ -1,0 +1,90 @@
+library(readr)
+library(dplyr)
+library(tidyr)
+
+# Resolve paths
+dataset_root <- "D:/GitHub Code/SpaGAT-CCC/BreastCancer2"
+script_dir <- file.path(dataset_root, "5.Results/OtherMethods")
+
+combo_path <- file.path(dataset_root, "3.LR_Scoring", "combo_only-A2.csv")
+cellchat_rds_path <- file.path(script_dir, "CellChatV2", "result", "result.rds")
+
+# COMMOT: commot_main.py uses COMMOT/result/ by default; alternate runs use result1/
+commot_csv_candidates <- c(
+  file.path(script_dir, "COMMOT", "result", "result.csv"),
+  file.path(script_dir, "COMMOT", "result1", "result.csv")
+)
+commot_existing <- commot_csv_candidates[vapply(commot_csv_candidates, file.exists, logical(1L))]
+commot_csv_path <- if (length(commot_existing)) commot_existing[[1]] else ""
+
+# Output paths
+cellchat_out <- file.path(script_dir, "CellChatV2", "result", "result_combo_only.csv")
+commot_out <- if (nzchar(commot_csv_path)) {
+  file.path(dirname(commot_csv_path), "result_combo_only.csv")
+} else {
+  file.path(script_dir, "COMMOT", "result", "result_combo_only.csv")
+}
+
+if (!file.exists(combo_path)) {
+  stop("combo list not found: ", combo_path)
+}
+
+# 1) Load combo definitions (same file as CellChatV2main.r / commot_main.py)
+combo_df <- read_csv(combo_path, show_col_types = FALSE, col_types = cols()) %>%
+  separate(combo, into = c("ligand_part", "receptor_part"), sep = "\\|") %>%
+  mutate(
+    Ligand   = sub("__.*", "", ligand_part),
+    Receptor = sub("__.*", "", receptor_part),
+    Sender   = sub(".*__", "", ligand_part),
+    Receiver = sub(".*__", "", receptor_part)
+  ) %>%
+  select(Sender, Receiver, Ligand, Receptor)
+
+if (nrow(combo_df) == 0) {
+  stop("combo_df is empty after parsing: ", combo_path)
+}
+cat("Loaded ", nrow(combo_df), " L-R combos from ", combo_path, "\n", sep = "")
+
+# Helper to ensure full combo coverage
+fill_missing <- function(df, score_col) {
+  df %>%
+    right_join(combo_df, by = c("Sender", "Receiver", "Ligand", "Receptor")) %>%
+    mutate({{ score_col }} := replace_na({{ score_col }}, 0)) %>%
+    # Preserve original combo order
+    mutate(.combo_id = row_number()) %>%
+    arrange(.combo_id) %>%
+    select(-.combo_id)
+}
+
+# 2) CellChat extraction
+if (!file.exists(cellchat_rds_path)) {
+  stop("CellChat result.rds not found at ", cellchat_rds_path)
+}
+cellchat_record <- readRDS(cellchat_rds_path)
+cellchat_df <- cellchat_record$result %>%
+  select(Sender, Receiver, Ligand, Receptor, LRscore)
+
+cellchat_combo <- fill_missing(cellchat_df, LRscore)
+write_csv(cellchat_combo, cellchat_out)
+cat("Saved CellChat combo scores to: ", cellchat_out, "\n")
+cat("Rows: ", nrow(cellchat_combo), "  Missing combos filled: ", sum(cellchat_combo$LRscore == 0), "\n")
+
+# 3) COMMOT extraction
+if (!nzchar(commot_csv_path)) {
+  stop(
+    "COMMOT result.csv not found. Tried:\n  ",
+    paste(unique(commot_csv_candidates), collapse = "\n  "),
+    "\nRun BreastCancer2/5.Results/OtherMethods/COMMOT/commot_main.py (creates COMMOT/result/), ",
+    "or copy an existing result.csv into COMMOT/result/ or COMMOT/result1/."
+  )
+}
+cat("Using COMMOT scores from: ", commot_csv_path, "\n", sep = "")
+commot_df <- read_csv(commot_csv_path, show_col_types = FALSE, col_types = cols()) %>%
+  rename(LRscore = score) %>%
+  group_by(Sender, Receiver, Ligand, Receptor) %>%
+  summarise(LRscore = max(LRscore, na.rm = TRUE), .groups = "drop")
+
+commot_combo <- fill_missing(commot_df, LRscore)
+write_csv(commot_combo, commot_out)
+cat("Saved COMMOT combo scores to: ", commot_out, "\n")
+cat("Rows: ", nrow(commot_combo), "  Missing combos filled: ", sum(commot_combo$LRscore == 0), "\n")

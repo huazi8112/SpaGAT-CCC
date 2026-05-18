@@ -1,0 +1,11 @@
+"","L2-L3-eNeuron_microglia","Lhx6-iNeuron_microglia","Adarb2-iNeuron_microglia","endothelial_microglia","mural_microglia","astrocytes_microglia","OPC_microglia","L4-eNeuron_microglia","L5-eNeuron_microglia","L6-eNeuron_microglia","Olig_microglia"
+"Lig_bk",16,20,17,23,29,23,24,17,20,19,23
+"Rec_bk",33,33,33,33,33,33,33,33,33,33,33
+"ICG_bk",15,15,15,15,15,15,15,15,15,15,15
+"LRpair",1,1,1,1,2,1,1,0,1,1,2
+"RecTFpair",2,2,2,2,5,2,2,0,2,2,2
+"TFTGpair",2,2,2,2,6,2,2,0,2,2,2
+"Ligand",1,1,1,1,2,1,1,0,1,1,2
+"Receptor",1,1,1,1,2,1,1,0,1,1,1
+"TF",2,2,2,2,4,2,2,0,2,2,2
+"TG",2,2,2,2,3,2,2,0,2,2,2

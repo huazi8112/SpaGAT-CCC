@@ -1,0 +1,11 @@
+"","Lhx6-iNeuron_L2-L3-eNeuron","Adarb2-iNeuron_L2-L3-eNeuron","microglia_L2-L3-eNeuron","endothelial_L2-L3-eNeuron","mural_L2-L3-eNeuron","astrocytes_L2-L3-eNeuron","OPC_L2-L3-eNeuron","L4-eNeuron_L2-L3-eNeuron","L5-eNeuron_L2-L3-eNeuron","L6-eNeuron_L2-L3-eNeuron","Olig_L2-L3-eNeuron"
+"Lig_bk",20,17,20,23,29,23,24,17,20,19,23
+"Rec_bk",22,22,22,22,22,22,22,22,22,22,22
+"ICG_bk",95,95,95,95,95,95,95,95,95,95,95
+"LRpair",2,1,3,3,2,3,3,1,1,1,5
+"RecTFpair",2,1,3,3,2,3,5,1,1,1,7
+"TFTGpair",48,12,33,69,48,48,48,12,12,12,48
+"Ligand",2,1,2,3,2,3,3,1,1,1,4
+"Receptor",2,1,3,2,1,2,3,1,1,1,5
+"TF",2,1,2,3,2,2,2,1,1,1,2
+"TG",43,12,30,44,43,43,43,12,12,12,43

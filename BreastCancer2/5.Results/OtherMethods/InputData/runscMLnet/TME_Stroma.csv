@@ -1,0 +1,11 @@
+"","Malignant_Stroma","Tcell_Stroma","Endothelial_Stroma","Bcell_Stroma","Macrophage_Stroma"
+"Lig_bk",148,96,65,69,119
+"Rec_bk",210,210,210,210,210
+"ICG_bk",50,37,49,33,17
+"LRpair",13,97,62,64,5
+"RecTFpair",17,210,48,128,4
+"TFTGpair",17,75,41,47,21
+"Ligand",7,54,26,35,5
+"Receptor",5,46,18,38,1
+"TF",4,13,6,7,4
+"TG",14,21,26,23,10

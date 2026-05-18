@@ -1,0 +1,11 @@
+"","L2-L3-eNeuron_astrocytes","Lhx6-iNeuron_astrocytes","Adarb2-iNeuron_astrocytes","microglia_astrocytes","endothelial_astrocytes","mural_astrocytes","OPC_astrocytes","L4-eNeuron_astrocytes","L5-eNeuron_astrocytes","L6-eNeuron_astrocytes","Olig_astrocytes"
+"Lig_bk",16,20,17,20,23,29,24,17,20,19,23
+"Rec_bk",30,30,30,30,30,30,30,30,30,30,30
+"ICG_bk",128,128,128,128,128,128,128,128,128,128,128
+"LRpair",0,1,0,4,12,12,4,2,2,0,8
+"RecTFpair",0,2,0,19,27,29,14,5,5,0,35
+"TFTGpair",0,27,0,267,287,260,188,73,73,0,275
+"Ligand",0,1,0,3,8,9,3,1,1,0,7
+"Receptor",0,1,0,4,7,7,4,2,2,0,8
+"TF",0,2,0,12,12,11,7,4,4,0,12
+"TG",0,14,0,86,86,86,82,50,50,0,86

@@ -1,0 +1,272 @@
+library(Seurat)
+library(ggplot2)
+library(patchwork)
+library(dplyr)
+library(CellChat)
+library(readr)
+library(tibble)
+library(tidyr)
+library(lobstr)
+
+rm(list = ls())
+gc()
+
+# Allow large globals to be shipped to future workers (CellChat exports a big Seurat object)
+options(future.globals.maxSize = 16 * 1024^3)
+
+get_script_dir <- function() {
+  args <- commandArgs(trailingOnly = FALSE)
+  file_arg <- "--file="
+  script_path <- sub(file_arg, "", args[grep(file_arg, args)])
+  if (length(script_path) > 0) {
+    return(dirname(normalizePath(script_path[1])))
+  }
+  if (!is.null(sys.frames()[[1]]$ofile)) {
+    return(dirname(normalizePath(sys.frames()[[1]]$ofile, mustWork = FALSE)))
+  }
+  getwd()
+}
+
+script_dir <- get_script_dir()
+benchmark_root <- normalizePath(file.path(script_dir, "..", ".."))
+
+setwd(script_dir)
+
+data_root <- file.path(benchmark_root, "OtherMethods", "InputData")
+seqfish_dir <- file.path(data_root, "seqfish")
+
+combo_subset_dir <- file.path(seqfish_dir, "combo_subset_A3")
+
+expression_path <- file.path(combo_subset_dir, "cortex_svz_expression_combo.txt")
+coord_path <- file.path(combo_subset_dir, "cortex_svz_centroids_coord_combo.txt")
+annot_path <- file.path(combo_subset_dir, "cortex_svz_centroids_annot_combo.txt")
+de_coords_path <- file.path(benchmark_root, "..", "1.Preprocessing", "de_coords_matched.csv")
+
+ligand_filtered_path <- file.path(benchmark_root, "..", "3.LR_Scoring", "ligand_expr_by_cell_filtered-A3.csv")
+receptor_filtered_path <- file.path(benchmark_root, "..", "3.LR_Scoring", "receptor_expr_by_cell_filtered-A3.csv")
+
+for (fp in c(expression_path, coord_path, annot_path, de_coords_path, ligand_filtered_path, receptor_filtered_path)) {
+  if (!file.exists(fp)) {
+    stop(paste("required file not found:", fp))
+  }
+}
+
+read_seqfish_expression <- function(path) {
+  tab_df <- suppressWarnings(read.delim(path, sep = "\t", check.names = FALSE, stringsAsFactors = FALSE))
+
+  if (ncol(tab_df) >= 2 && tolower(colnames(tab_df)[1]) == "gene") {
+    genes <- tab_df[[1]]
+    expr_mat <- as.matrix(tab_df[, -1, drop = FALSE])
+    mode(expr_mat) <- "numeric"
+    rownames(expr_mat) <- genes
+    return(expr_mat)
+  }
+
+  lines <- readLines(path)
+  if (length(lines) < 2) stop("empty or invalid expression file")
+
+  barcodes <- strsplit(trimws(lines[1]), "\\s+")[[1]]
+  data_lines <- lines[-1]
+  split_lines <- strsplit(trimws(data_lines), "\\s+")
+
+  genes <- vapply(split_lines, function(x) x[1], character(1))
+  expr_values <- lapply(split_lines, function(x) as.numeric(x[-1]))
+  expr_mat <- do.call(rbind, expr_values)
+
+  colnames(expr_mat) <- barcodes
+  rownames(expr_mat) <- genes
+  expr_mat
+}
+
+ptm = Sys.time()
+
+### load st data
+st_count <- read_seqfish_expression(expression_path)
+
+de_coords <- read_csv(de_coords_path, show_col_types = FALSE)
+de_coords <- de_coords %>%
+  transmute(Barcode, x, y, Cluster)
+
+common_cells <- intersect(colnames(st_count), de_coords$Barcode)
+if (length(common_cells) == 0) {
+  stop("No overlapping cells between expression and de_coords_matched.csv")
+}
+
+st_count <- st_count[, common_cells, drop = FALSE]
+de_coords <- de_coords %>% filter(Barcode %in% common_cells)
+de_coords <- de_coords[match(common_cells, de_coords$Barcode), ]
+
+predicted_labels <- de_coords$Cluster
+meta <- data.frame(labels = predicted_labels, row.names = de_coords$Barcode)
+unique(meta$labels) # check the cell labels
+
+st_metadata <- data.frame(x = de_coords$x, y = de_coords$y, row.names = de_coords$Barcode)
+st_metadata$predicted_label <- predicted_labels
+
+st.se <- CreateSeuratObject(st_count, meta.data = st_metadata, assay = 'Spatial')
+st.se <- SCTransform(st.se, assay = "Spatial", verbose = FALSE) 
+
+if ("LayerData" %in% getNamespaceExports("SeuratObject")) {
+  data.input <- SeuratObject::LayerData(st.se, assay = "SCT", layer = "data")
+} else if ("layer" %in% names(formals(SeuratObject::GetAssayData))) {
+  data.input <- SeuratObject::GetAssayData(st.se, layer = "data", assay = "SCT")
+} else {
+  data.input <- Seurat::GetAssayData(st.se, slot = "data", assay = "SCT")
+}
+
+
+scale.factors = list(spot.diameter = 1, spot = 1, fiducial = 1, hires = 1, lowres = 1)
+
+spatial.locs <- data.frame(spot = de_coords$Barcode, imagerow = de_coords$y, imagecol = de_coords$x)
+spatial.locs <- column_to_rownames(spatial.locs, var = 'spot')
+spatial.locs <- as.matrix(spatial.locs)
+
+### Creat a CellChat object
+cellchat <- createCellChat(object = data.input, meta = meta, group.by = "labels",
+                           datatype = "spatial", coordinates = spatial.locs, scale.factors = scale.factors)
+
+# Set the ligand-receptor interaction database：仅使用 combo_only-A3.csv 中的组合
+combo_path <- normalizePath(
+  file.path(
+    benchmark_root, "..",
+    "2.LR_Screening", "3.Identify sensitive genes and gene combinations",
+    "3.Subnetwork exploration", "combo_only-A3.csv"
+  ),
+  mustWork = TRUE
+)
+combo_df <- read_csv(combo_path, show_col_types = FALSE, col_types = cols())
+combo_parsed <- combo_df %>%
+  tidyr::separate(combo, into = c("ligand_part", "receptor_part"), sep = "\\|") %>%
+  mutate(
+    ligand   = sub("__.*", "", ligand_part),
+    receptor = sub("__.*", "", receptor_part),
+    sender   = sub(".*__", "", ligand_part),
+    receiver = sub(".*__", "", receptor_part)
+  )
+
+gene_map <- data.frame(
+  gene_original = rownames(data.input),
+  gene_upper = toupper(rownames(data.input)),
+  stringsAsFactors = FALSE
+) %>% distinct(gene_upper, .keep_all = TRUE)
+
+combo_parsed <- combo_parsed %>%
+  mutate(
+    ligand_upper = toupper(ligand),
+    receptor_upper = toupper(receptor)
+  ) %>%
+  left_join(gene_map %>% select(gene_upper, ligand_mapped = gene_original), by = c("ligand_upper" = "gene_upper")) %>%
+  left_join(gene_map %>% select(gene_upper, receptor_mapped = gene_original), by = c("receptor_upper" = "gene_upper")) %>%
+  mutate(
+    ligand = coalesce(ligand_mapped, ligand),
+    receptor = coalesce(receptor_mapped, receptor)
+  ) %>%
+  select(-ligand_upper, -receptor_upper, -ligand_mapped, -receptor_mapped)
+
+interaction_df <- combo_parsed %>%
+  transmute(
+    interaction_name   = paste0(ligand, "_", receptor),
+    pathway_name       = "CUSTOM",
+    ligand             = ligand,
+    receptor           = receptor,
+    agonist            = "",
+    antagonist         = "",
+    co_A_receptor      = "",
+    co_I_receptor      = "",
+    evidence           = "custom list",
+    annotation         = "Custom",
+    interaction_name_2 = paste0(ligand, " - (", receptor, ")")
+  )
+
+gene_symbols <- unique(c(combo_parsed$ligand, combo_parsed$receptor))
+gene_info <- data.frame(
+  Symbol = gene_symbols,
+  Name = gene_symbols,
+  EntrezGene.ID = NA_integer_,
+  Ensembl.Gene.ID = NA_character_,
+  MGI.ID = NA_character_,
+  Gene.group.name = NA_character_,
+  stringsAsFactors = FALSE
+)
+
+CellChatDB.use <- list(
+  interaction = interaction_df,
+  complex     = data.frame(),
+  cofactor    = data.frame(),
+  geneInfo    = gene_info
+)
+
+cellchat@DB <- CellChatDB.use
+
+### Preprocessing the expression data for cell-cell communication analysis
+# subset the expression data of signaling genes for saving computation cost
+cellchat <- subsetData(cellchat) # This step is necessary even if using the whole database
+available_cores <- parallel::detectCores()
+future::plan("multisession", workers = 12)     
+# available_cores
+cellchat <- identifyOverExpressedGenes(cellchat)
+cellchat <- identifyOverExpressedInteractions(cellchat)
+
+### Inference of cell-cell communication network
+
+compute_args <- list(object = cellchat,
+                     type = "truncatedMean",
+                     trim = 0.1,
+                     distance.use = TRUE,
+                     scale.distance = 0.01)
+if ("interaction.range" %in% names(formals(CellChat::computeCommunProb))) {
+  compute_args$interaction.range <- 250
+}
+cellchat <- do.call(CellChat::computeCommunProb, compute_args)
+# Filter out the cell-cell communication if there are only few number of cells in certain cell groups
+cellchat <- filterCommunication(cellchat, min.cells = 10)
+# Infer the cell-cell communication at a signaling pathway level
+# Skipping computeCommunProbPathway because our custom DB only has one pathway; CellChat 2.x drops the
+# pathway dimension in that case and aperm() fails with "'perm' length 3 (!= 2)".
+# If multiple pathways are added later, re-enable the call below.
+# cellchat <- computeCommunProbPathway(cellchat)
+# Calculate the aggregated cell-cell communication network
+# cellchat <- aggregateNet(cellchat)
+result_raw <- subsetCommunication(cellchat, slot.name = "net")
+
+# 构造 key 并左连接 596 组合，缺失补 0 分
+# 使用 toupper 统一大小写，避免表达矩阵基因名（如 Adam15）与 combo 大写名（ADAM15）不匹配
+result_raw$key_combo <- paste0(toupper(result_raw$ligand), "__", result_raw$source, "|", toupper(result_raw$receptor), "__", result_raw$target)
+cat("result_raw rows after subsetCommunication:", nrow(result_raw), "\n")
+combo_table <- combo_parsed %>%
+  transmute(Sender = sender, Receiver = receiver, Ligand = ligand, Receptor = receptor,
+            key_combo = paste0(toupper(ligand), "__", sender, "|", toupper(receptor), "__", receiver))
+
+result_join <- combo_table %>%
+  left_join(result_raw[, c("key_combo", "prob")], by = "key_combo") %>%
+  rename(LRscore = prob)
+
+result_join$LRscore[is.na(result_join$LRscore)] <- 0
+result <- result_join
+
+used.time = Sys.time() - ptm
+used.memory <- mem_used()
+print(as.numeric(used.time, units = "secs"))
+
+result <- result %>% select(Sender, Receiver, Ligand, Receptor, LRscore)
+result <- result[which(result$Sender != result$Receiver),]
+result$Ligand <- gsub('_', '&', result$Ligand)
+result$Receptor <- gsub('_', '&', result$Receptor)
+result$all <- paste(result$Sender, result$Ligand, result$Receiver, result$Receptor, sep = '_')
+result <- dplyr::distinct(result, all, .keep_all = TRUE)
+
+result_record <- list(result=result, 
+                      used_time = paste0(round(used.time/60,3), ' min'), 
+                      used_memory =  round(used.memory/1024/1024/1024,3))
+
+if (!dir.exists("./result")) {
+  dir.create("./result", recursive = TRUE)
+}
+
+saveRDS(result_record, file = "./result/result.rds")
+result_record <- result
+
+
+
+
+

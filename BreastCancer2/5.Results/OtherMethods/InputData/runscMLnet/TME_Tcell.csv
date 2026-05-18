@@ -1,0 +1,11 @@
+"","Malignant_Tcell","Stroma_Tcell","Endothelial_Tcell","Bcell_Tcell","Macrophage_Tcell"
+"Lig_bk",148,127,65,69,119
+"Rec_bk",228,228,228,228,228
+"ICG_bk",3,5,1,6,0
+"LRpair",1,197,0,21,0
+"RecTFpair",2,88,0,30,0
+"TFTGpair",2,12,0,3,0
+"Ligand",1,78,0,17,0
+"Receptor",1,33,0,13,0
+"TF",2,6,0,3,0
+"TG",1,4,0,1,0
