@@ -27,18 +27,24 @@ from STAGATE.Train_STAGATE import train_STAGATE
 
 SEED = 2021
 root = Path(__file__).resolve().parent
-scoring_dir = root.parent / "3.LR_Scoring"
+bc2_root = root.parent
+scoring_dir = bc2_root / "3.LR_Scoring"
 output_dir = root / "ablation_v5"
 output_dir.mkdir(exist_ok=True)
 
-COMBO_FILE = "combo_only-A2.csv"
-COMBO_PATH = scoring_dir / COMBO_FILE
+COMBO_PATH = (
+    bc2_root
+    / "2.LR_Screening"
+    / "3.Identify sensitive genes and gene combinations"
+    / "3.Subnetwork exploration"
+    / "combo_only-A2.csv"
+)
 LIG_FILE = "ligand_expr_by_cell_filtered-A2.csv"
 REC_FILE = "receptor_expr_by_cell_filtered-A2.csv"
 LR_SCORE_FILE = "LR_scores_all_pairs_V0_meta_gpu_A2.csv"
-KNOWN_NROWS = 766
+KNOWN_NROWS = 239
 
-EVAL_TOPK = 800
+EVAL_TOPK = 850
 
 LR_SCORE_PATH = scoring_dir / LR_SCORE_FILE
 
@@ -101,8 +107,7 @@ def load_known_pairs(path, nrows):
     raw = pd.read_csv(path, nrows=nrows, header=None)
     if raw.shape[1] == 1:
         col = raw.iloc[:, 0].astype(str)
-        mask = col.str.contains("|", regex=False)
-        split = col[mask].str.split("|", n=1, expand=True)
+        split = col.str.split("|", n=1, expand=True)
     else:
         split = raw.iloc[:, :2].copy()
         split.columns = [0, 1]
@@ -123,24 +128,23 @@ def evaluate_pred(pred_path, known, topk=500):
     pred["Cell2"] = pred["Cell2"].astype(str).str.strip()
     pred["key_ud"] = pred.apply(lambda r: "||".join(sorted([r.Cell1, r.Cell2])), axis=1)
     pred = pred.sort_values("score", ascending=False).head(topk).reset_index(drop=True)
-    all_keys = pd.unique(pd.concat([pred["key_ud"], known["key_ud"]], ignore_index=True))
-    labels = pd.DataFrame({"key_ud": all_keys})
-    labels = labels.merge(known[["key_ud", "label"]], on="key_ud", how="left")
-    labels["label"] = labels["label"].fillna(0)
-    labels = labels.merge(pred[["key_ud", "score"]], on="key_ud", how="left").fillna(0)
+
+    # Evaluation set = Top-K predictions only (aligned with eval_other_methods.py).
+    labels = pred[["key_ud", "score"]].copy()
+    known_keys = set(known["key_ud"].tolist())
+    labels["label"] = labels["key_ud"].isin(known_keys).astype(int)
+
+    hit = int(labels["label"].sum())
+    m = {"hit": hit, "hit_rate": hit / len(known) if len(known) else 0}
     y_true, y_score = labels["label"].values, labels["score"].values
-    hit = known[known["key_ud"].isin(pred["key_ud"])]
-    m = {"hit": len(hit), "hit_rate": len(hit) / len(known) if len(known) else 0}
     if len(pd.unique(y_true)) >= 2:
         m["ROC_AUC"] = roc_auc_score(y_true, y_score)
         m["PR_AUC"] = average_precision_score(y_true, y_score)
     else:
         m["ROC_AUC"] = m["PR_AUC"] = 0.0
-    topk_df = labels.sort_values("score", ascending=False).head(topk)
-    tp = topk_df["label"].sum()
     pk, rk = f"P@{topk}", f"R@{topk}"
-    m[pk] = tp / topk if topk else 0.0
-    m[rk] = tp / len(known) if len(known) else 0.0
+    m[pk] = hit / topk if topk else 0.0
+    m[rk] = hit / len(known) if len(known) else 0.0
     return m
 
 
@@ -164,7 +168,6 @@ def prepare_base_data():
 def load_combo_cross_edges(s1_nodes, s2_nodes, combo_path):
     combo_pairs = []
     with combo_path.open("r", encoding="utf-8") as f:
-        _ = f.readline()
         for line in f:
             combo = line.strip()
             if not combo or "|" not in combo:

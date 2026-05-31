@@ -6,7 +6,13 @@ library(tidyr)
 dataset_root <- "D:/GitHub Code/SpaGAT-CCC/BreastCancer2"
 script_dir <- file.path(dataset_root, "5.Results/OtherMethods")
 
-combo_path <- file.path(dataset_root, "3.LR_Scoring", "combo_only-A2.csv")
+combo_path <- file.path(
+  dataset_root,
+  "2.LR_Screening",
+  "3.Identify sensitive genes and gene combinations",
+  "3.Subnetwork exploration",
+  "combo_only-A2.csv"
+)
 cellchat_rds_path <- file.path(script_dir, "CellChatV2", "result", "result.rds")
 
 # COMMOT: commot_main.py uses COMMOT/result/ by default; alternate runs use result1/

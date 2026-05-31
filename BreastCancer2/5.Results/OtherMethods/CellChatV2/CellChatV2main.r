@@ -76,7 +76,13 @@ cellchat <- createCellChat(object = data.input, meta = meta, group.by = "labels"
                            datatype = "spatial", coordinates = spatial.locs, scale.factors = scale.factors)
 
 # Set the ligand-receptor interaction database：仅使用 combo_only-A2.csv 中的组合
-combo_path <- normalizePath(file.path(dataset_root, "3.LR_Scoring", "combo_only-A2.csv"), mustWork = FALSE)
+combo_path <- normalizePath(file.path(
+  dataset_root,
+  "2.LR_Screening",
+  "3.Identify sensitive genes and gene combinations",
+  "3.Subnetwork exploration",
+  "combo_only-A2.csv"
+), mustWork = FALSE)
 if (!file.exists(combo_path)) {
   stop("combo_only file not found: ", combo_path)
 }

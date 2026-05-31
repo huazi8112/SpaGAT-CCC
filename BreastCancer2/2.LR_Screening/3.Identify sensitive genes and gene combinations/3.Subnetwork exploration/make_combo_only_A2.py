@@ -10,7 +10,7 @@
 从每个 rds 的 LigRec(source,target) 提取基因对，并按目录名 Sender_Receiver 补细胞类型。
 
 输出：
-- combo_only-A2-scMLnet.csv
+- combo_only-A2.csv
   单列 combo，格式：LigGene__SenderCT|RecGene__ReceiverCT
 """
 
@@ -39,7 +39,7 @@ RUNSCMLNET_DIR = os.path.normpath(
 
 MAT_L = os.path.join(SCRIPT_DIR, "new_name-L0.45-A2.mat")
 MAT_R = os.path.join(SCRIPT_DIR, "new_name-R0.01-A2.mat")
-OUTPUT_CSV = os.path.join(SCRIPT_DIR, "combo_only-A2-scMLnet.csv")
+OUTPUT_CSV = os.path.join(SCRIPT_DIR, "combo_only-A2.csv")
 
 
 def load_mat_names(path: str) -> list[str]:
@@ -173,7 +173,7 @@ def main() -> None:
 
     # 输出顺序：先RDS选出（仅RDS + 重叠），再仅MAT
     ordered = sorted(only_rds) + sorted(overlap) + sorted(only_mat)
-    pd.DataFrame({"combo": ordered}).to_csv(OUTPUT_CSV, index=False)
+    pd.DataFrame({"combo": ordered}).to_csv(OUTPUT_CSV, index=False, header=False)
     print(f"\n✅ 已写出: {OUTPUT_CSV}  ({len(ordered)} 行)")
 
 

@@ -24,8 +24,7 @@ t_value = [];
 RMSE_all = [];
 
 % Perturbation analysis
-% for u = [-0.3,-0.25,-0.2,0.2, 0.25, 0.3];
-    for u = [-0.3];
+for u = [-0.3,-0.25,-0.2,0.2, 0.25, 0.3];
     u
     n = size(Rec_time, 2);
     predict = [];

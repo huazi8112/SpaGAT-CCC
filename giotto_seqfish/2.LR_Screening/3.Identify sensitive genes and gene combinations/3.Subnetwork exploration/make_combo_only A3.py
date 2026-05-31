@@ -173,7 +173,7 @@ def main() -> None:
 
     # 输出顺序：先RDS选出（仅RDS + 重叠），再仅MAT
     ordered = sorted(only_rds) + sorted(overlap) + sorted(only_mat)
-    pd.DataFrame({"combo": ordered}).to_csv(OUTPUT_CSV, index=False)
+    pd.DataFrame({"combo": ordered}).to_csv(OUTPUT_CSV, index=False, header=False)
     print(f"\n✅ 已写出: {OUTPUT_CSV}  ({len(ordered)} 行)")
 
 

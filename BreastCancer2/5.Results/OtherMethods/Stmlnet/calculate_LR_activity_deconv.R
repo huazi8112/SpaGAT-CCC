@@ -24,7 +24,13 @@ script_dir <- file.path(bc2_dir, "5.Results/OtherMethods/Stmlnet")
 
 ligand_file <- file.path(bc2_dir, "3.LR_Scoring", "ligand_expr_by_cell_filtered-A2.csv")
 receptor_file <- file.path(bc2_dir, "3.LR_Scoring", "receptor_expr_by_cell_filtered-A2.csv")
-combo_file <- file.path(bc2_dir, "3.LR_Scoring", "combo_only-A2.csv")
+combo_file <- file.path(
+  bc2_dir,
+  "2.LR_Screening",
+  "3.Identify sensitive genes and gene combinations",
+  "3.Subnetwork exploration",
+  "combo_only-A2.csv"
+)
 coords_file <- file.path(bc2_dir, "1.Preprocessing", "de_coords.csv")
 
 # Output directory

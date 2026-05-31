@@ -51,12 +51,9 @@ _ADDU_L       = 'adduwavelet-100-(all)-L-merged-A2.mat'
 _ADDU_R       = 'adduwavelet-100-(all)-R-merged-A2.mat'
 _ERROR_L      = 'error-L.mat'
 
-# 与上述 MAT 筛选阈值一致（图例中的 n @ t₀）
+# 与 new_name-L/R*.mat 筛选阈值一致；Panel D 竖线标此最终 t₀
 _SENSITIVE_T0_L = 0.45
 _SENSITIVE_T0_R = 0.01
-# Panel D 曲线上的竖线标注阈值（可与 t₀ 独立）
-MARK_THRESHOLD_L = 0.18
-MARK_THRESHOLD_R = 0.114
 
 CT_COLORS = {
     "Bcell": "#4e79a7", "Macrophage": "#e15759", "Stroma": "#76b7b2",
@@ -440,7 +437,7 @@ def _draw_C(subfig):
 
 
 # ============================================================================
-# Panel D — 阈值敏感性曲线（A2；竖线 MARK_THRESHOLD_*；图例 n 对应 _SENSITIVE_T0_* MAT）
+# Panel D — 阈值敏感性曲线（A2；L/R 同轴；标注风格对齐 seqfish）
 # ============================================================================
 def _draw_D(subfig):
     print("[D] Plotting threshold sensitivity (A2) …")
@@ -457,7 +454,7 @@ def _draw_D(subfig):
         pre = sio.loadmat(str(NETWORK_DIR / prewavelet_file))
         H      = np.array(hp["H_point_value"])
         maprho = np.array(pre["maprho"])
-        thresholds = np.round(np.arange(0.06, 0.31, 0.003), 3)
+        thresholds = np.round(np.arange(0.0, 0.801, 0.003), 3)
         counts = []
         for t in thresholds:
             idx = np.where(np.mean(H, axis=1) < t)[0]
@@ -473,23 +470,23 @@ def _draw_D(subfig):
     subfig.set_facecolor('white')
     ax = subfig.add_subplot(1, 1, 1)
     ax.plot(thresh_L, counts_L, "o-", color="#4e79a7", linewidth=2, markersize=3,
-            label=f"L-layer / Ligand (n={len(names_L)} @ t₀={_SENSITIVE_T0_L})")
+            label=f"L-layer / Ligand (n={len(names_L)} @ {_SENSITIVE_T0_L})")
     ax.plot(thresh_R, counts_R, "s-", color="#e15759", linewidth=2, markersize=3,
-            label=f"R-layer / Receptor (n={len(names_R)} @ t₀={_SENSITIVE_T0_R})")
+            label=f"R-layer / Receptor (n={len(names_R)} @ {_SENSITIVE_T0_R})")
     ax.fill_between(thresh_L, counts_L, alpha=0.06, color="#4e79a7")
     ax.fill_between(thresh_R, counts_R, alpha=0.06, color="#e15759")
 
     y_max = max(counts_L.max(), counts_R.max())
     for thresh, color, layer, thr_arr, cnt_arr in [
-        (MARK_THRESHOLD_L, "#4e79a7", "L", thresh_L, counts_L),
-        (MARK_THRESHOLD_R, "#e15759", "R", thresh_R, counts_R),
+        (_SENSITIVE_T0_L, "#4e79a7", "L", thresh_L, counts_L),
+        (_SENSITIVE_T0_R, "#e15759", "R", thresh_R, counts_R),
     ]:
         y_at = cnt_arr[np.argmin(np.abs(thr_arr - thresh))]
         ax.axvline(thresh, color=color, linestyle="--", linewidth=1.4, alpha=0.7)
-        ax.annotate(f"thr({layer})={thresh}", xy=(thresh, y_max + 3),
+        ax.annotate(f"thr({layer})={thresh}", xy=(thresh, y_max + 2),
                     fontsize=18, fontweight="bold", color=color, ha="center", va="bottom")
         marker = "o" if layer == "L" else "s"
-        ax.plot(thresh, y_at, marker, color=color, markersize=8, zorder=5,
+        ax.plot(thresh, y_at, marker, color=color, markersize=10, zorder=5,
                 markeredgecolor="white", markeredgewidth=1.5)
         ax.annotate(f"  {y_at}", xy=(thresh, y_at), fontsize=16, color=color,
                     fontweight="bold", va="center")
@@ -502,7 +499,8 @@ def _draw_D(subfig):
     ax.tick_params(labelsize=18)
     ax.spines["top"].set_visible(False); ax.spines["right"].set_visible(False)
     ax.grid(axis="y", linestyle="--", alpha=0.25)
-    ax.set_ylim(0, y_max + 15)
+    ax.set_xlim(0.0, 0.80)
+    ax.set_ylim(0, y_max + 10)
     subfig.text(0.01, 0.97, 'D', transform=subfig.transSubfigure,
                 fontsize=44, fontweight='bold', fontfamily='Arial', va='top', ha='left')
     print("  Panel D done.")

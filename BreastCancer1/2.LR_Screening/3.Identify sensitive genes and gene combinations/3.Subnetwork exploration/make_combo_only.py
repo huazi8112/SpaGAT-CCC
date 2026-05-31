@@ -1,4 +1,4 @@
-"""A3版本：生成 combo_only-A3.csv
+"""A1版本：生成 combo_only.csv
 
 来源1：
 - new_name-L0.26.mat
@@ -23,7 +23,7 @@ import pandas as pd
 import scipy.io as sio
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-# 与脚本同项目：BreastCancer1/…/Metric_Evaluation/OtherMethods/InputData/runscMLnet（内含 **/scMLnet.rds）
+# A1 (BreastCancer1): …/Metric_Evaluation/OtherMethods/InputData/runscMLnet（内含 **/scMLnet.rds）
 RUNSCMLNET_DIR = os.path.normpath(
     os.path.join(
         SCRIPT_DIR,
@@ -142,7 +142,7 @@ def extract_combos_from_runscmlnet(base_dir: str) -> set[str]:
 
 
 def main() -> None:
-    print("=== A3 来源1: 阈值MAT笛卡尔积 ===")
+    print("=== A1 来源1: 阈值MAT笛卡尔积 ===")
     l_names = load_mat_names(MAT_L)
     r_names = load_mat_names(MAT_R)
     print(f"  L 节点数: {len(l_names)},  R 节点数: {len(r_names)}")
@@ -157,7 +157,7 @@ def main() -> None:
 
     print(f"  笛卡尔积（去同类）: {len(mat_combos)} 对")
 
-    print("\n=== A3 来源2: runscMLnet/scMLnet.rds ===")
+    print("\n=== A1 来源2: runscMLnet/scMLnet.rds ===")
     rds_combos = extract_combos_from_runscmlnet(RUNSCMLNET_DIR)
     print(f"  runscMLnet 提取唯一 combo: {len(rds_combos)} 对")
 
@@ -174,7 +174,7 @@ def main() -> None:
 
     # 输出顺序：先RDS选出（仅RDS + 重叠），再仅MAT
     ordered = sorted(only_rds) + sorted(overlap) + sorted(only_mat)
-    pd.DataFrame({"combo": ordered}).to_csv(OUTPUT_CSV, index=False)
+    pd.DataFrame({"combo": ordered}).to_csv(OUTPUT_CSV, index=False, header=False)
     print(f"\n✅ 已写出: {OUTPUT_CSV}  ({len(ordered)} 行)")
 
 

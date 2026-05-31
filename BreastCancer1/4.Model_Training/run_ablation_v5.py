@@ -1,12 +1,9 @@
-"""Parameter sweep for STAGATE multihead training.
-
-围绕 baseline (sigma_expr=30, k=3, num_heads=4, lr=1e-4, n_epochs=500)
-对 sigma_expr / k / num_heads / lr / n_epochs 做 one-at-a-time 扫描，
-并对 sigma × k 做一个小网格（最影响先验质量的两个超参）。
-
-评估指标沿用 run_ablation_v4.py：ROC_AUC / PR_AUC / P@500 / R@500 / hit。
 """
-
+run_ablation_v5.py — 变体命名为 A–E，对照 run_ablation_v3.py（无字母前缀）：
+  A <- MeanPooling    B <- Full    C <- ShuffledPrior    D <- Sigma60    E <- RawExpr
+输出：ablation_v5/pred_{A..E}.csv, summary.csv 中 v3_variant 为上述短名。
+其余逻辑与 run_ablation_v3.py 相同。
+"""
 import os
 os.environ["PYTHONHASHSEED"] = "2021"
 os.environ["TF_DETERMINISTIC_OPS"] = "1"
@@ -18,7 +15,6 @@ os.environ["NUMEXPR_NUM_THREADS"] = "1"
 os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
 os.environ["BLIS_NUM_THREADS"] = "1"
 
-import time
 import random
 import numpy as np
 import pandas as pd
@@ -29,28 +25,60 @@ from sklearn.neighbors import NearestNeighbors
 from sklearn.metrics import roc_auc_score, average_precision_score
 from STAGATE.Train_STAGATE import train_STAGATE
 
-SEED = 2020
+SEED = 2021
 root = Path(__file__).resolve().parent
-scoring_dir = root.parent / "3.LR_Scoring"
-output_dir = root / "param_sweep"
+bc1_root = root.parent
+scoring_dir = bc1_root / "3.LR_Scoring"
+output_dir = root / "ablation_v5"
 output_dir.mkdir(exist_ok=True)
 
-COMBO_FILE_NAME = "combo_only-A2.csv"
-COMBO_FILE = (
-    root.parent
+COMBO_PATH = (
+    bc1_root
     / "2.LR_Screening"
     / "3.Identify sensitive genes and gene combinations"
     / "3.Subnetwork exploration"
-    / COMBO_FILE_NAME
+    / "combo_only.csv"
 )
-LIG_FILE = "ligand_expr_by_cell_filtered-A2.csv"
-REC_FILE = "receptor_expr_by_cell_filtered-A2.csv"
-LR_SCORE_FILE = "LR_scores_all_pairs_V0_meta_gpu_A2.csv"
-LR_SCORE_PATH = scoring_dir / LR_SCORE_FILE
-KNOWN_NROWS = 766
-TOPK = 800
+LIG_FILE = "ligand_expr_by_cell_filtered.csv"
+REC_FILE = "receptor_expr_by_cell_filtered.csv"
+LR_SCORE_FILE = "LR_scores_all_pairs_V0_meta_gpu.csv"
+KNOWN_NROWS = 214
 
-BASELINE = dict(sigma_expr=30, k=3, num_heads=4, lr=1e-4, n_epochs=500)
+EVAL_TOPK = 700
+
+LR_SCORE_PATH = scoring_dir / LR_SCORE_FILE
+
+VARIANTS = {
+    "A": dict(
+        _v3_name="MeanPooling",
+        skip_train=True,
+    ),
+    "B": dict(
+        _v3_name="Full",
+        num_heads=4, use_corr_loss=True, sigma_expr="auto",
+        lr_score_rds=LR_SCORE_PATH, shuffle_prior=False,
+    ),
+    "C": dict(
+        _v3_name="ShuffledPrior",
+        num_heads=4, use_corr_loss=True, sigma_expr="auto",
+        lr_score_rds=LR_SCORE_PATH, shuffle_prior=True,
+    ),
+    "D": dict(
+        _v3_name="Sigma60",
+        num_heads=4, use_corr_loss=True, sigma_expr=60,
+        lr_score_rds=LR_SCORE_PATH, shuffle_prior=False,
+    ),
+    "E": dict(
+        _v3_name="RawExpr",
+        num_heads=4, use_corr_loss=True, sigma_expr="auto",
+        lr_score_rds=LR_SCORE_PATH, shuffle_prior=False, log_expr=False,
+    ),
+}
+
+
+def _cfg_for_train(cfg):
+    """供 train_STAGATE 使用，去掉元信息键。"""
+    return {k: v for k, v in cfg.items() if not k.startswith("_")}
 
 
 def build_symmetric_knn_edges(expr, node_names, label, k=3, weight=1.0):
@@ -93,7 +121,7 @@ def load_known_pairs(path, nrows):
     return known
 
 
-def evaluate_pred(pred_path, known, topk=TOPK):
+def evaluate_pred(pred_path, known, topk=500):
     pred = pd.read_csv(pred_path)
     score_col = "att" if "att" in pred.columns else "score"
     pred = pred.rename(columns={score_col: "score"})
@@ -101,23 +129,23 @@ def evaluate_pred(pred_path, known, topk=TOPK):
     pred["Cell2"] = pred["Cell2"].astype(str).str.strip()
     pred["key_ud"] = pred.apply(lambda r: "||".join(sorted([r.Cell1, r.Cell2])), axis=1)
     pred = pred.sort_values("score", ascending=False).head(topk).reset_index(drop=True)
-    all_keys = pd.unique(pd.concat([pred["key_ud"], known["key_ud"]], ignore_index=True))
-    labels = pd.DataFrame({"key_ud": all_keys})
-    labels = labels.merge(known[["key_ud", "label"]], on="key_ud", how="left")
-    labels["label"] = labels["label"].fillna(0)
-    labels = labels.merge(pred[["key_ud", "score"]], on="key_ud", how="left").fillna(0)
+
+    # Evaluation set = Top-K predictions only (aligned with eval_other_methods.py).
+    labels = pred[["key_ud", "score"]].copy()
+    known_keys = set(known["key_ud"].tolist())
+    labels["label"] = labels["key_ud"].isin(known_keys).astype(int)
+
+    hit = int(labels["label"].sum())
+    m = {"hit": hit, "hit_rate": hit / len(known) if len(known) else 0}
     y_true, y_score = labels["label"].values, labels["score"].values
-    hit = known[known["key_ud"].isin(pred["key_ud"])]
-    m = {"hit": len(hit), "hit_rate": len(hit) / len(known) if len(known) else 0}
     if len(pd.unique(y_true)) >= 2:
         m["ROC_AUC"] = roc_auc_score(y_true, y_score)
         m["PR_AUC"] = average_precision_score(y_true, y_score)
     else:
         m["ROC_AUC"] = m["PR_AUC"] = 0.0
-    topk_df = labels.sort_values("score", ascending=False).head(500)
-    tp = topk_df["label"].sum()
-    m["P@500"] = tp / 500
-    m["R@500"] = tp / len(known) if len(known) else 0.0
+    pk, rk = f"P@{topk}", f"R@{topk}"
+    m[pk] = hit / topk if topk else 0.0
+    m[rk] = hit / len(known) if len(known) else 0.0
     return m
 
 
@@ -138,10 +166,9 @@ def prepare_base_data():
     return X, section_labels
 
 
-def load_combo_cross_edges(s1_nodes, s2_nodes):
+def load_combo_cross_edges(s1_nodes, s2_nodes, combo_path):
     combo_pairs = []
-    with COMBO_FILE.open("r", encoding="utf-8") as f:
-        _ = f.readline()
+    with combo_path.open("r", encoding="utf-8") as f:
         for line in f:
             combo = line.strip()
             if not combo or "|" not in combo:
@@ -188,123 +215,94 @@ def extract_pred(adata, save_path):
     pred_all[["Cell1", "Cell2", "att"]].to_csv(save_path, index=False)
 
 
-def run_one(name, X, section_labels, s1_nodes, s2_nodes, cross_df, known,
-            sigma_expr, k, num_heads, lr, n_epochs):
-    pred_path = output_dir / f"pred_{name}.csv"
-    intra_s1 = build_symmetric_knn_edges(X.loc[s1_nodes].values, s1_nodes, "s1", k=k)
-    intra_s2 = build_symmetric_knn_edges(X.loc[s2_nodes].values, s2_nodes, "s2", k=k)
-
-    random.seed(SEED)
-    np.random.seed(SEED)
-    adata = build_adata(X, section_labels, intra_s1, intra_s2, cross_df.copy())
-
-    t0 = time.time()
-    adata = train_STAGATE(
-        adata, hidden_dims=[512, 30],
-        num_heads=num_heads, alpha=0,
-        random_seed=SEED, n_epochs=n_epochs, lr=lr,
-        verbose=False, save_attention=True, save_loss=True,
-        use_corr_loss=True, sigma_expr=sigma_expr,
-        lr_score_rds=LR_SCORE_PATH,
-        ligand_section="s1", receptor_section="s2",
-        lr_score_column="mean_score_recv",
-        shuffle_prior=False,
-    )
-    train_sec = time.time() - t0
-
-    extract_pred(adata, pred_path)
-    m = evaluate_pred(pred_path, known)
-    m["variant"] = name
-    m["sigma_expr"] = sigma_expr
-    m["k"] = k
-    m["num_heads"] = num_heads
-    m["lr"] = lr
-    m["n_epochs"] = n_epochs
-    m["train_sec"] = round(train_sec, 2)
-    final_loss = float(adata.uns.get("STAGATE_loss", [np.nan])[-1]) if "STAGATE_loss" in adata.uns else np.nan
-    m["final_loss"] = final_loss
-    print(f"  [{name:<22}] sigma={sigma_expr} k={k} heads={num_heads} lr={lr} ep={n_epochs} "
-          f"| hit={m['hit']:>3} ROC={m['ROC_AUC']:.4f} PR={m['PR_AUC']:.4f} "
-          f"P@500={m['P@500']:.4f} R@500={m['R@500']:.4f} loss={final_loss:.4f} t={train_sec:.1f}s")
-    return m
-
-
-def build_configs():
-    """One-at-a-time sweep + sigma×k grid."""
-    configs = []
-
-    # 1) baseline
-    configs.append(("baseline_s30_k3_h4_lr1e-4_ep500", BASELINE.copy()))
-
-    # 2) sigma_expr sweep (固定 k=3, heads=4, lr=1e-4, ep=500)
-    for s in [10, 15, 20, 25, 35, 40, 50, 60]:
-        cfg = BASELINE.copy(); cfg["sigma_expr"] = s
-        configs.append((f"sigma_{s}", cfg))
-
-    # 3) k sweep (固定 sigma=30, heads=4, lr=1e-4, ep=500)
-    for k in [6, 10, 15]:
-        cfg = BASELINE.copy(); cfg["k"] = k
-        configs.append((f"k_{k}", cfg))
-
-    # 4) num_heads sweep
-    for h in [1, 2, 8]:
-        cfg = BASELINE.copy(); cfg["num_heads"] = h
-        configs.append((f"heads_{h}", cfg))
-
-    # 5) lr sweep
-    for lr in [5e-5, 2e-4, 5e-4]:
-        cfg = BASELINE.copy(); cfg["lr"] = lr
-        configs.append((f"lr_{lr:.0e}", cfg))
-
-    # 6) n_epochs sweep
-    for ep in [300, 1000, 2000]:
-        cfg = BASELINE.copy(); cfg["n_epochs"] = ep
-        configs.append((f"epochs_{ep}", cfg))
-
-    # 7) sigma × k 小网格（先验质量与图密度联合影响）
-    for s in [25, 30, 35]:
-        for k in [6, 10]:
-            cfg = BASELINE.copy(); cfg["sigma_expr"] = s; cfg["k"] = k
-            configs.append((f"grid_s{s}_k{k}", cfg))
-
-    return configs
+def run_mean_pooling(X, cross_df, save_path):
+    scores = []
+    for _, row in cross_df.iterrows():
+        lig = X.loc[row["Cell1"]].values if row["Cell1"] in X.index else np.zeros(X.shape[1])
+        rec = X.loc[row["Cell2"]].values if row["Cell2"] in X.index else np.zeros(X.shape[1])
+        scores.append(float(np.mean(lig) * np.mean(rec)))
+    result = cross_df[["Cell1", "Cell2"]].copy()
+    result["att"] = scores
+    result = result.sort_values("att", ascending=False)
+    result.to_csv(save_path, index=False)
 
 
 def main():
-    print("Loading base data...")
     X, section_labels = prepare_base_data()
     s1_nodes = X.index[[lab == "s1" for lab in section_labels]]
     s2_nodes = X.index[[lab == "s2" for lab in section_labels]]
-    cross_df = load_combo_cross_edges(s1_nodes, s2_nodes)
-    known = load_known_pairs(COMBO_FILE, nrows=KNOWN_NROWS)
-    print(f"Known positives: {len(known)}, Total cross edges: {len(cross_df)}, "
-          f"Positive ratio: {len(known)/len(cross_df):.1%}")
 
-    configs = build_configs()
-    print(f"Total configs: {len(configs)}\n")
+    intra_s1 = build_symmetric_knn_edges(X.loc[s1_nodes].values, s1_nodes, "s1", k=3)
+    intra_s2 = build_symmetric_knn_edges(X.loc[s2_nodes].values, s2_nodes, "s2", k=3)
+    cross_df = load_combo_cross_edges(s1_nodes, s2_nodes, COMBO_PATH)
+
+    known = load_known_pairs(COMBO_PATH, nrows=KNOWN_NROWS)
+    print(f"Known positives: {len(known)}, Total combos: {len(cross_df)}, "
+          f"Positive ratio: {len(known)/len(cross_df):.1%}\n")
+
+    if not cross_df.empty:
+        _expr_log = np.log1p(np.maximum(X.values, 0))
+        _idx_map = {name: i for i, name in enumerate(X.index)}
+        _rows_idx = [_idx_map[c] for c in cross_df["Cell1"]]
+        _cols_idx = [_idx_map[c] for c in cross_df["Cell2"]]
+        _diff = _expr_log[_rows_idx] - _expr_log[_cols_idx]
+        _dist_sq = np.sum(_diff * _diff, axis=1)
+        _median_d = float(np.median(np.sqrt(_dist_sq)))
+        _sigma_auto = _median_d if _median_d > 0 else 1.0
+        expr_sim = np.exp(-_dist_sq / (2.0 * _sigma_auto * _sigma_auto))
+        q = np.quantile(expr_sim, [0, 0.25, 0.5, 0.75, 0.9, 0.99])
+        near0_1e3 = np.mean(expr_sim < 1e-3) * 100
+        near0_1e6 = np.mean(expr_sim < 1e-6) * 100
+        print(f"[诊断] log1p+Gaussian auto sigma={_sigma_auto:.2f}: min/25/50/75/90/99% = {q}")
+        print(f"[诊断] <1e-3: {near0_1e3:.2f}%  <1e-6: {near0_1e6:.2f}%\n")
+    else:
+        print("无跨层边，跳过表达相似度统计\n")
 
     results = []
-    for i, (name, cfg) in enumerate(configs, 1):
-        print(f"[{i}/{len(configs)}] {name}")
-        try:
-            m = run_one(name, X, section_labels, s1_nodes, s2_nodes, cross_df, known, **cfg)
-            results.append(m)
-            pd.DataFrame(results).to_csv(output_dir / "summary.csv", index=False)
-        except Exception as e:
-            print(f"  ERROR: {e}")
-            continue
+    for name, cfg in VARIANTS.items():
+        v3n = cfg.get("_v3_name", "")
+        print(f"\n{'='*60}\n  {name} (V3: {v3n})\n{'='*60}")
 
-    df = pd.DataFrame(results)
-    cols = ["variant", "sigma_expr", "k", "num_heads", "lr", "n_epochs",
-            "hit", "hit_rate", "ROC_AUC", "PR_AUC", "P@500", "R@500",
-            "final_loss", "train_sec"]
-    df = df[cols]
+        pred_path = output_dir / f"pred_{name}.csv"
+        cfg_train = _cfg_for_train(cfg)
+
+        if cfg_train.get("skip_train"):
+            run_mean_pooling(X, cross_df, pred_path)
+        else:
+            random.seed(SEED)
+            np.random.seed(SEED)
+            adata = build_adata(X, section_labels, intra_s1, intra_s2, cross_df.copy())
+            score_col = "mean_score_recv" if cfg_train.get("lr_score_rds") else "mean_nonzero"
+            adata = train_STAGATE(
+                adata, hidden_dims=[512, 30],
+                num_heads=cfg_train["num_heads"], alpha=0,
+                random_seed=SEED, n_epochs=500, lr=1e-4,
+                verbose=True, save_attention=True, save_loss=True,
+                use_corr_loss=cfg_train["use_corr_loss"],
+                sigma_expr=cfg_train["sigma_expr"],
+                lr_score_rds=cfg_train.get("lr_score_rds"),
+                ligand_section="s1", receptor_section="s2",
+                lr_score_column=score_col,
+                shuffle_prior=cfg_train.get("shuffle_prior", False),
+                invert_prior=cfg_train.get("invert_prior", False),
+                log_expr=cfg_train.get("log_expr", True),
+            )
+            extract_pred(adata, pred_path)
+
+        m = evaluate_pred(pred_path, known, topk=EVAL_TOPK)
+        m["variant"] = name
+        m["v3_variant"] = v3n
+        results.append(m)
+        pk, rk = f"P@{EVAL_TOPK}", f"R@{EVAL_TOPK}"
+        print(f"  hit={m['hit']}, ROC={m['ROC_AUC']:.4f}, PR={m['PR_AUC']:.4f}, "
+              f"{pk}={m[pk]:.4f}, {rk}={m[rk]:.4f}")
+
+    df = pd.DataFrame(results)[
+        ["variant", "v3_variant", "hit", "hit_rate", "ROC_AUC", "PR_AUC", f"P@{EVAL_TOPK}", f"R@{EVAL_TOPK}"]
+    ]
     df.to_csv(output_dir / "summary.csv", index=False)
-
-    print(f"\n{'='*100}\nParameter Sweep Summary (sorted by PR_AUC desc)\n{'='*100}")
-    print(df.sort_values("PR_AUC", ascending=False).to_string(index=False))
-    print(f"\n{'='*100}\nTop 5 by ROC_AUC:\n{'='*100}")
-    print(df.sort_values("ROC_AUC", ascending=False).head(5).to_string(index=False))
+    print(f"\n{'='*60}\nAblation v5 Summary\n{'='*60}")
+    print(df.to_string(index=False))
 
 
 if __name__ == "__main__":

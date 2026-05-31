@@ -167,7 +167,6 @@ combo_only_path = (
 )
 combo_pairs = []
 with combo_only_path.open("r", encoding="utf-8") as f:
-    _ = f.readline()
     for line in f:
         combo = line.strip()
         if not combo or "|" not in combo:

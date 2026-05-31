@@ -172,7 +172,8 @@ def train_STAGATE(adata, hidden_dims=[512, 30], num_heads=4, alpha=0, n_epochs=5
                 save_attention=False, save_loss=False, save_reconstrction=False,
                 use_corr_loss=False, sigma_expr=1.0, lr_score_rds=None,
                 ligand_section=None, receptor_section=None, key_section='Section_id',
-                lr_score_column="mean_nonzero", shuffle_prior=False):
+                lr_score_column="mean_nonzero", shuffle_prior=False, invert_prior=False,
+                log_expr=True):
     """\
     Training graph attention auto-encoder.
 
@@ -248,8 +249,13 @@ def train_STAGATE(adata, hidden_dims=[512, 30], num_heads=4, alpha=0, n_epochs=5
         else:
             rows = cross_df['Cell1'].map(cells_id_tran).values
             cols = cross_df['Cell2'].map(cells_id_tran).values
-            expr_log = np.log1p(np.maximum(expr, 0))   # log1p压缩，避免高斯核数值下溢
-            diff = expr_log[rows] - expr_log[cols]
+            # log_expr=True: log1p压缩（默认，避免高斯核数值下溢）；False: 使用原始表达
+            if log_expr:
+                expr_for_sim = np.log1p(np.maximum(expr, 0))
+            else:
+                expr_for_sim = np.maximum(expr, 0).astype(np.float32)
+                print("[log_expr=False] 使用原始基因表达计算相似度（不取log）")
+            diff = expr_for_sim[rows] - expr_for_sim[cols]
             expr_dist_sq = np.sum(diff * diff, axis=1)
 
             if sigma_expr is None or (isinstance(sigma_expr, (int, float)) and sigma_expr <= 0):
@@ -274,6 +280,10 @@ def train_STAGATE(adata, hidden_dims=[512, 30], num_heads=4, alpha=0, n_epochs=5
                 lr_weights = np.ones_like(expr_sim, dtype=np.float32)
 
             prior = expr_sim * lr_weights
+
+            if invert_prior:
+                mx = float(np.max(prior))
+                prior = (mx - prior).astype(np.float32) if mx > 0 else np.zeros_like(prior)
 
             if shuffle_prior:
                 np.random.shuffle(prior)

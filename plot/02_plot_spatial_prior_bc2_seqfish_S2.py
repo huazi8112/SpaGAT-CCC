@@ -139,7 +139,13 @@ def _draw_strip(
 def _load_bc2():
     root = SCRIPT_DIR.parent / "BreastCancer2"
     scores = pd.read_csv(root / "3.LR_Scoring" / "LR_scores_all_pairs_V0_meta_gpu_A2.csv")
-    combo = pd.read_csv(root / "3.LR_Scoring" / "combo_only-A2.csv")
+    combo_path = (
+        root / "2.LR_Screening"
+        / "3.Identify sensitive genes and gene combinations"
+        / "3.Subnetwork exploration"
+        / "combo_only-A2.csv"
+    )
+    combo = pd.read_csv(combo_path, header=None, names=["combo"])
     combo_set = set(combo["combo"].dropna().str.strip())
     df = scores[scores["pair"].isin(combo_set)].copy()
     df["ct_pair"] = df["sender_cluster"] + " → " + df["receiver_cluster"]
@@ -155,7 +161,8 @@ def _load_seqfish():
     scores = pd.read_csv(root / "3.LR_Scoring" / "LR_scores_all_pairs_V0_meta_gpu_A3.csv")
     combo = pd.read_csv(
         root / "2.LR_Screening" / "3.Identify sensitive genes and gene combinations"
-        / "3.Subnetwork exploration" / "combo_only-A3.csv"
+        / "3.Subnetwork exploration" / "combo_only-A3.csv",
+        header=None, names=["combo"],
     )
     combo_set = set(combo["combo"].dropna().str.strip())
     df = scores[scores["pair"].isin(combo_set)].copy()

@@ -7,7 +7,7 @@
 
 所有绘图直接在同一 figure 上完成。
 
-输出：与本脚本同目录 — 03_benchmark_summary.png（同一主干名）。
+输出：与本脚本同目录 — 03_benchmark_summary.png / .pdf / .eps（同一主干名）。
 """
 
 import sys
@@ -247,24 +247,24 @@ def draw_benchmark_workflow(ax):
 # 与各数据集 eval_other_methods.py 终端输出一致（顺序：stMLnet, CellChatV2, COMMOT, CytoSignal, SpaGAT-CCC）
 PERFORMANCE_BENCH_DATA = {
         "ROC-AUC": {
-            "BC1":     [0.0057, 0.0061, 0.2448, 0.0067, 0.7958],
-            "BC2":     [0.0008, 0.0121, 0.1798, 0.0197, 0.1032],
-            "seqFISH": [0.0029, 0.0144, 0.5697, 0.0073, 0.6311],
+            "BC1":     [0.5101, 0.7284, 0.6596, 0.4853, 0.9034],
+            "BC2":     [0.1766, 0.0463, 0.5534, 0.1393, 0.3546],
+            "seqFISH": [0.1712, 0.3169, 0.7648, 0.1855, 0.8296],
         },
         "PR-AUC": {
-            "BC1":     [0.4167, 0.4187, 0.5281, 0.4162, 0.9139],
-            "BC2":     [0.7181, 0.7108, 0.8868, 0.7121, 0.9047],
-            "seqFISH": [0.5306, 0.7317, 0.9066, 0.5266, 0.9340],
+            "BC1":     [0.0144, 0.1760, 0.5815, 0.0253, 0.9475],
+            "BC2":     [0.0161, 0.3083, 0.7910, 0.2668, 0.8443],
+            "seqFISH": [0.0462, 0.5093, 0.8754, 0.0664, 0.9117],
         },
         "Precision": {
             "BC1":     [0.0080, 0.0060, 0.2680, 0.0100, 0.6360],
-            "BC2":     [0.0033, 0.1833, 0.7467, 0.1867, 0.8400],
-            "seqFISH": [0.0100, 0.6733, 0.7300, 0.0300, 0.7700],
+            "BC2":     [0.0260, 0.4960, 0.7260, 0.4200, 0.8700],
+            "seqFISH": [0.0780, 0.5460, 0.6080, 0.1120, 0.6060],
         },
         "Recall": {
             "BC1":     [0.0111, 0.0083, 0.3712, 0.0139, 0.8809],
-            "BC2":     [0.0013, 0.0719, 0.2928, 0.0732, 0.3294],
-            "seqFISH": [0.0088, 0.5906, 0.6404, 0.0263, 0.6754],
+            "BC2":     [0.0170, 0.3242, 0.4745, 0.2745, 0.5686],
+            "seqFISH": [0.1137, 0.7959, 0.8863, 0.1633, 0.8834],
         },
 }
 
@@ -291,8 +291,8 @@ def draw_performance_bar(subfig):
 
     axes_b = subfig.subplots(2, 2)
     subfig.subplots_adjust(
-        left=0.06, right=0.99, bottom=0.07, top=0.90,
-        hspace=0.22, wspace=0.16,
+        left=0.09, right=0.99, bottom=0.07, top=0.84,
+        hspace=0.45, wspace=0.18,
     )
     axes_b = axes_b.flatten()
 
@@ -313,7 +313,7 @@ def draw_performance_bar(subfig):
                 ax.text(
                     x, val + 0.018, lbl,
                     ha="center", va="bottom",
-                    fontsize=12 if is_best else 11,
+                    fontsize=16 if is_best else 15,
                     rotation=90,
                     color="#c0392b" if is_best else "#222222",
                     fontweight="bold",
@@ -321,9 +321,10 @@ def draw_performance_bar(subfig):
 
         group_centers = [d * (n_methods * bar_width + group_gap) for d in range(n_datasets)]
         ax.set_xticks(group_centers)
-        ax.set_xticklabels(ds_xtick_labels, fontsize=14, fontweight="bold")
-        ax.set_title(metric, fontsize=18, fontweight="bold", pad=8)
-        ax.set_ylabel("Score", fontsize=13)
+        ax.set_xticklabels(datasets, fontsize=19, fontweight="bold")
+        ax.set_title(metric, fontsize=24, fontweight="bold", pad=8)
+        ax.set_ylabel("Score", fontsize=18)
+        ax.tick_params(axis="y", labelsize=15)
         ax.set_ylim(0, 1.25)
         ax.set_yticks(np.arange(0, 1.01, 0.2))
         ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{v:.1f}"))
@@ -333,7 +334,7 @@ def draw_performance_bar(subfig):
 
     legend_handles = [Patch(facecolor=colors[m], edgecolor="black", label=m) for m in methods]
     subfig.legend(handles=legend_handles, loc="upper center", ncol=n_methods,
-                  fontsize=13, frameon=False, bbox_to_anchor=(0.5, 0.995),
+                  fontsize=17, frameon=False, bbox_to_anchor=(0.5, 0.995),
                   handlelength=1.5, handletextpad=0.45, columnspacing=1.35)
 
 
@@ -361,13 +362,13 @@ def draw_methods_table(ax):
     n_methods = len(methods)
     n_funcs = len(functionalities)
 
-    col0_w = 3.05
-    col_w = 2.38
-    row_h = 1.12
-    header_h = 1.55
+    col0_w = 2.60
+    col_w = 1.95
+    row_h = 1.30
+    header_h = 1.75
     total_w = col0_w + n_funcs * col_w
     total_h = header_h + n_methods * row_h
-    x0, y0 = 0.35, 0.35
+    x0, y0 = 0.60, 0.35
 
     fig_w = total_w + 0.75
     fig_h = total_h + 0.85
@@ -390,7 +391,7 @@ def draw_methods_table(ax):
         (x0, top_y - header_h), col0_w, header_h,
         facecolor=HEADER_BG, edgecolor="white", lw=1.5, zorder=3))
     ax.text(x0 + col0_w / 2, top_y - header_h / 2, "Methods",
-            ha="center", va="center", fontsize=19, fontweight="bold",
+            ha="center", va="center", fontsize=20, fontweight="bold",
             color=HEADER_TEXT, zorder=4)
 
     func_total_w = n_funcs * col_w
@@ -399,7 +400,7 @@ def draw_methods_table(ax):
         facecolor=HEADER_BG, edgecolor="white", lw=1.5, zorder=3))
     ax.text(x0 + col0_w + func_total_w / 2, top_y - header_h * 0.2,
             "Functionalities", ha="center", va="center",
-            fontsize=19, fontweight="bold", color=HEADER_TEXT, zorder=4)
+            fontsize=20, fontweight="bold", color=HEADER_TEXT, zorder=4)
 
     for j, func in enumerate(functionalities):
         fx = x0 + col0_w + j * col_w
@@ -419,8 +420,8 @@ def draw_methods_table(ax):
         ax.add_patch(plt.Rectangle(
             (x0, ry), col0_w, row_h,
             facecolor=row_bg, edgecolor=BORDER, lw=0.6, zorder=2))
-        ax.text(x0 + 0.2, ry + row_h / 2, method,
-                ha="left", va="center", fontsize=17,
+        ax.text(x0 + 0.18, ry + row_h / 2, method,
+                ha="left", va="center", fontsize=18,
                 fontweight="bold" if is_ours else "normal",
                 color="#c0392b" if is_ours else "#333333", zorder=4)
 
@@ -432,7 +433,7 @@ def draw_methods_table(ax):
                 facecolor=row_bg, edgecolor=BORDER, lw=0.6, zorder=2))
             cx = fx + col_w / 2
             cy = ry + row_h / 2
-            r = 0.31
+            r = 0.34
             if val:
                 circle = plt.Circle((cx, cy), r, facecolor="#4CAF50",
                                     edgecolor="white", lw=1.2, zorder=4)
@@ -470,7 +471,7 @@ subfigs_row[0].subplots_adjust(left=0.02, right=0.995, top=0.98, bottom=0.02)
 draw_benchmark_workflow(ax_A)
 
 # ── 底行：B/C 间距收紧，宽度接近 1:1 以占满宽度 ──
-subfigs_bottom = subfigs_row[1].subfigures(1, 2, wspace=0.008, width_ratios=[1.02, 1.0])
+subfigs_bottom = subfigs_row[1].subfigures(1, 2, wspace=0.008, width_ratios=[1.35, 0.80])
 subfigs_row[1].subplots_adjust(left=0.01, right=0.995, top=0.99, bottom=0.01)
 
 # ── B：左下，2×2 柱状图 ──
@@ -478,17 +479,23 @@ draw_performance_bar(subfigs_bottom[0])
 
 # ── C：右下，方法对比表 ──
 ax_C = subfigs_bottom[1].subplots(1, 1)
-subfigs_bottom[1].subplots_adjust(left=0.01, right=0.99, top=0.99, bottom=0.01)
+subfigs_bottom[1].subplots_adjust(left=0.06, right=0.99, top=0.99, bottom=0.01)
 draw_methods_table(ax_C)
 
 # ── ABC 标签：A 贴顶行；B/C 贴底行上沿（随 height_ratios 对齐）──
 fig.text(0.015, 0.985, "A", fontsize=44, fontweight="bold", va="top", ha="left")
 fig.text(0.015, _Y_SPLIT + 0.012, "B", fontsize=44, fontweight="bold", va="bottom", ha="left")
-fig.text(0.515, _Y_SPLIT + 0.012, "C", fontsize=44, fontweight="bold", va="bottom", ha="left")
+fig.text(0.630, _Y_SPLIT + 0.012, "C", fontsize=44, fontweight="bold", va="bottom", ha="left")
 
-# ── 保存（png）──
+# ── 保存 ──
 out_png = out_dir / f"{OUT_STEM}.png"
+out_pdf = out_dir / f"{OUT_STEM}.pdf"
+out_eps = out_dir / f"{OUT_STEM}.eps"
+fig.savefig(out_eps, format="eps", bbox_inches="tight", facecolor="white")
+fig.savefig(out_pdf, bbox_inches="tight", facecolor="white")
 fig.savefig(out_png, dpi=300, bbox_inches="tight", facecolor="white")
 plt.close(fig)
 
+print(f"Saved: {out_eps}")
+print(f"Saved: {out_pdf}")
 print(f"Saved: {out_png}")

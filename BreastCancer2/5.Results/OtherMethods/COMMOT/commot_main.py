@@ -104,10 +104,16 @@ print(adata_dis500)
 db_name = 'custom'
 
 # load custom LR list (1610 combos): format Ligand__Sender|Receptor__Receiver
-combo_path = dataset_root / "3.LR_Scoring" / "combo_only-A2.csv"
+combo_path = (
+    dataset_root
+    / "2.LR_Screening"
+    / "3.Identify sensitive genes and gene combinations"
+    / "3.Subnetwork exploration"
+    / "combo_only-A2.csv"
+)
 if not combo_path.exists():
     raise FileNotFoundError(f"Custom LR list not found: {combo_path}")
-combo_df = pd.read_csv(combo_path)
+combo_df = pd.read_csv(combo_path, header=None, names=["combo"])
 ligands = []
 receptors = []
 for combo in combo_df['combo']:

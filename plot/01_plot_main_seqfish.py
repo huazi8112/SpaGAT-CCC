@@ -59,10 +59,15 @@ def load_data() -> pd.DataFrame:
 df = load_data()
 
 
+# 图 B 参数：y 轴 top L-R 对数；x 轴标签数由 draw_dotplot 内 _MAX_X_LABELS 控制
+TOP_N_LR = 25
+TOP_N_CT = 6   # 不再用于过滤列数，保留供 panel_B.py 宽度估算
+
+
 # ==========================================
 # 2. 图 B：气泡图 (Bubble Plot) — 原始逻辑
 # ==========================================
-def draw_dotplot(ax, df_all, top_n=25):
+def draw_dotplot(ax, df_all, top_n=TOP_N_LR):
     """Dot plot: top_n *unique* L-R pairs (by best score), all CT pairs shown."""
     df_all = df_all.copy()
     df_all["LRPair"] = df_all["Ligand"] + " - " + df_all["Receptor"]
@@ -103,16 +108,30 @@ def draw_dotplot(ax, df_all, top_n=25):
             edgecolors="black", linewidths=0.9, zorder=3,
         )
 
-    ax.set_xticks(range(len(ct_pairs_ordered)))
+    # X 轴：保留所有气泡列，但只给均匀采样的若干位置显示标签，避免拥挤
+    _MAX_X_LABELS = 10
+    n_ct = len(ct_pairs_ordered)
+    if n_ct <= _MAX_X_LABELS:
+        shown_idx = set(range(n_ct))
+    else:
+        import numpy as _np
+        shown_idx = set(
+            int(round(i)) for i in _np.linspace(0, n_ct - 1, _MAX_X_LABELS)
+        )
+    xlabels = [ct_pairs_ordered[i] if i in shown_idx else "" for i in range(n_ct)]
+
+    ax.set_xticks(range(n_ct))
     ax.set_xticklabels(
-        ct_pairs_ordered, rotation=90, ha="center", va="top",
+        xlabels, rotation=90, ha="center", va="top",
         fontsize=FS.TICK, fontweight="bold",
     )
+    # 无标签的列仍画短刻度线，方便对齐
+    ax.tick_params(axis="x", which="major", length=4, pad=6)
+
     ax.set_xlabel(
         "Cell Type Pairs (Sender \u2192 Receiver)",
         fontsize=FS.TITLE, fontweight="bold", labelpad=44,
     )
-    ax.tick_params(axis="x", pad=6)
 
     ax.set_yticks(range(len(lr_order)))
     ytl = ax.set_yticklabels(
@@ -186,7 +205,12 @@ def plot_network_chart(ax, df):
 
     # Manual pixel-space nudges (layout coords ~ [-1, 1]).
     _GENE_NUDGES = {
-        "ITGB1": (0.0, -0.14),      # down
+        "ITGB1": (0.0, 0.16),       # up — separate from TNFRSF1B (7)
+        "PLXNB3": (0.0, 0.22),      # up — separate from FN1 (2)
+        "AXL": (0.28, 0.0),         # right
+        "ADAM11": (0.12, 0.0),      # right (less than AXL)
+        "FN1": (0.12, 0.0),         # right
+        "LGI2": (0.0, -0.16),       # down
         "COL4A2": (-0.14, 0.0),    # left
         "SEMA7A": (0.12, 0.12),    # upper-right
     }
