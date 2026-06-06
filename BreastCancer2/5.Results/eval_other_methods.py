@@ -165,15 +165,16 @@ def load_known_pairs(path: str, nrows: int = 766) -> pd.DataFrame:
     known["label"] = 1
     known["key_dir"] = known["Cell1"] + "||" + known["Cell2"]
     known["key_ud"] = known.apply(lambda r: "||".join(sorted([r.Cell1, r.Cell2])), axis=1)
+    known = known.drop_duplicates(subset=["key_dir"]).reset_index(drop=True)
     return known
 
 
 def attach_labels_and_score(pred: pd.DataFrame, known: pd.DataFrame) -> pd.DataFrame:
     # Evaluation set = each method's Top-K predictions only (no union with positives).
     # A row's label is 1 iff it appears in the validated positives, else 0.
-    labels = pred[["key_ud", "score"]].copy()
-    known_keys = set(known["key_ud"].tolist())
-    labels["label"] = labels["key_ud"].isin(known_keys).astype(int)
+    labels = pred[["key_dir", "score"]].copy()
+    known_keys = set(known["key_dir"].tolist())
+    labels["label"] = labels["key_dir"].isin(known_keys).astype(int)
     return labels
 
 
@@ -184,7 +185,7 @@ def report_metrics(name: str, labels: pd.DataFrame, known: pd.DataFrame, pred: p
     overlap = int(labels["label"].sum())
     print(f"[{name}] 已验证正例={pos_total}, Top-{pred_total} 预测边={pred_total}, 命中的正例数={overlap}")
     if overlap == 0:
-        missing = known.loc[~known["key_ud"].isin(pred["key_ud"])]
+        missing = known.loc[~known["key_dir"].isin(pred["key_dir"])]
         print(f"[{name}] 警告：Top-{pred_total} 未命中任何正例，可能是命名或方向不一致。示例前5条未命中：")
         print(missing.head(5))
 
@@ -286,6 +287,7 @@ def load_pred_scores(path: Path, topk: int = 500) -> pd.DataFrame:
     pred = pred.rename(columns={score_col: "score"})
     pred["Cell1"] = pred["Cell1"].astype(str).str.strip()
     pred["Cell2"] = pred["Cell2"].astype(str).str.strip()
+    pred["key_dir"] = pred["Cell1"] + "||" + pred["Cell2"]
     pred["key_ud"] = pred.apply(lambda r: "||".join(sorted([r.Cell1, r.Cell2])), axis=1)
     pred = pred.sort_values("score", ascending=False).head(topk).reset_index(drop=True)
     return pred
@@ -307,14 +309,14 @@ def normalize_pred_with_celltype(df: pd.DataFrame, sender_col: str, receiver_col
 def _scores_on_frame(frame: pd.DataFrame, pred: pd.DataFrame) -> np.ndarray:
     """Return a score vector aligned to *frame* (0 for keys absent in pred)."""
     pred_dedup = (
-        pred[["key_ud", "score"]]
-        .groupby("key_ud", as_index=False)["score"]
+        pred[["key_dir", "score"]]
+        .groupby("key_dir", as_index=False)["score"]
         .max()
     )
-    merged = frame[["key_ud"]].merge(pred_dedup, on="key_ud", how="left")
+    merged = frame[["key_dir"]].merge(pred_dedup, on="key_dir", how="left")
     assert len(merged) == len(frame), (
         f"_scores_on_frame: merge expanded ({len(merged)} vs {len(frame)}). "
-        "Check for duplicate key_ud in pred after dedup."
+        "Check for duplicate key_dir in pred after dedup."
     )
     return merged["score"].fillna(0).values
 
@@ -340,7 +342,7 @@ def _load_pred_map(methods_root: Path, spagat_path: Path, topk: int) -> dict[str
 
     commot_candidates = [
         methods_root / "COMMOT" / "result" / "result_combo_only.csv",
-        methods_root / "COMMOT" / "result1" / "result_combo_only.csv",
+        methods_root / "COMMOT" / "result" / "result_combo_only.csv",
     ]
     commot_path = next((p for p in commot_candidates if p.exists()), None)
     if commot_path is not None:
@@ -385,7 +387,12 @@ def main():
     pred_map = _load_pred_map(methods_root, spagat_path, topk)
 
     pred_topk: dict[str, pd.DataFrame] = {
-        name: p.sort_values("score", ascending=False).head(topk).reset_index(drop=True)
+        name: (
+            p[p["score"] > 0]
+            .sort_values("score", ascending=False)
+            .head(topk)
+            .reset_index(drop=True)
+        )
         for name, p in pred_map.items()
         if name != "Spagat-ccc"
     }

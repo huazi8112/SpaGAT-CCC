@@ -37,14 +37,19 @@ visium_dir <- file.path(data_root, "Breast_Cancer_Block_A_Section_1")
 preprocess_dir <- file.path(data_root, "preprocess")
 coords_path <- file.path(data_root, "de_coords.csv")
 
-bc1_root <- normalizePath(file.path(script_dir, "..", "..", "..", ".."))
-combo_path <- file.path(bc1_root, "2.LR_Screening",
+dataset_root <- normalizePath(file.path(script_dir, "..", "..", "..", ".."))
+combo_path <- file.path(dataset_root, "2.LR_Screening",
                         "3.Identify sensitive genes and gene combinations",
                         "3.Subnetwork exploration", "combo_only.csv")
 
 ptm = Sys.time()
 
-combo_data <- read_csv(combo_path, show_col_types = FALSE)
+combo_lines <- read_lines(combo_path)
+if (length(combo_lines) > 0 && tolower(trimws(combo_lines[1])) == "combo") {
+  combo_lines <- combo_lines[-1]
+}
+combo_lines <- combo_lines[grepl("\\|", combo_lines)]
+combo_data <- tibble(combo = combo_lines)
 cat("Loaded", nrow(combo_data), "L-R pairs from combo_only file\n")
 
 # Parse combo_only: keep sender/receiver, but use pure gene symbols for CytoSignal DB

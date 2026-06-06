@@ -28,7 +28,8 @@ get_script_dir <- function() {
 }
 
 script_dir <- get_script_dir()
-benchmark_root <- normalizePath(file.path(script_dir, "..", ".."))
+dataset_root <- normalizePath(file.path(script_dir, "..", "..", ".."))
+benchmark_root <- file.path(dataset_root, "5.Results")
 
 setwd(script_dir)
 
@@ -40,10 +41,10 @@ combo_subset_dir <- file.path(seqfish_dir, "combo_subset_A3")
 expression_path <- file.path(combo_subset_dir, "cortex_svz_expression_combo.txt")
 coord_path <- file.path(combo_subset_dir, "cortex_svz_centroids_coord_combo.txt")
 annot_path <- file.path(combo_subset_dir, "cortex_svz_centroids_annot_combo.txt")
-de_coords_path <- file.path(benchmark_root, "..", "1.Preprocessing", "de_coords_matched.csv")
+de_coords_path <- file.path(dataset_root, "1.Preprocessing", "de_coords_matched.csv")
 
-ligand_filtered_path <- file.path(benchmark_root, "..", "3.LR_Scoring", "ligand_expr_by_cell_filtered-A3.csv")
-receptor_filtered_path <- file.path(benchmark_root, "..", "3.LR_Scoring", "receptor_expr_by_cell_filtered-A3.csv")
+ligand_filtered_path <- file.path(dataset_root, "3.LR_Scoring", "ligand_expr_by_cell_filtered-A3.csv")
+receptor_filtered_path <- file.path(dataset_root, "3.LR_Scoring", "receptor_expr_by_cell_filtered-A3.csv")
 
 for (fp in c(expression_path, coord_path, annot_path, de_coords_path, ligand_filtered_path, receptor_filtered_path)) {
   if (!file.exists(fp)) {
@@ -126,15 +127,15 @@ cellchat <- createCellChat(object = data.input, meta = meta, group.by = "labels"
                            datatype = "spatial", coordinates = spatial.locs, scale.factors = scale.factors)
 
 # Set the ligand-receptor interaction database：仅使用 combo_only-A3.csv 中的组合
-combo_path <- normalizePath(
-  file.path(
-    benchmark_root, "..",
-    "2.LR_Screening", "3.Identify sensitive genes and gene combinations",
-    "3.Subnetwork exploration", "combo_only-A3.csv"
-  ),
-  mustWork = TRUE
+combo_path <- file.path(
+  dataset_root,
+  "2.LR_Screening", "3.Identify sensitive genes and gene combinations",
+  "3.Subnetwork exploration", "combo_only-A3.csv"
 )
-combo_df <- read_csv(combo_path, show_col_types = FALSE, col_types = cols())
+if (!file.exists(combo_path)) {
+  stop("combo_only file not found: ", combo_path)
+}
+combo_df <- read_csv(combo_path, col_names = "combo", show_col_types = FALSE)
 combo_parsed <- combo_df %>%
   tidyr::separate(combo, into = c("ligand_part", "receptor_part"), sep = "\\|") %>%
   mutate(

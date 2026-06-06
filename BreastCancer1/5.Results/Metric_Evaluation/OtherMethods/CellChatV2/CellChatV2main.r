@@ -40,17 +40,26 @@ st_count <- Read10X(file.path(visium_dir, "filtered_feature_bc_matrix_combo"),
                     gene.column = 2)
 
 st_decomp <- read_csv(file.path(preprocess_dir, "celltype_predictions.csv"), show_col_types = FALSE) %>%
-  column_to_rownames(var = "...1") %>%
   as.data.frame()
+id_col <- names(st_decomp)[1]
+st_decomp <- column_to_rownames(st_decomp, var = id_col)
 
 st_coef <- as.data.frame(t(st_decomp))
 colnames(st_coef) <- gsub('\\.', '_', colnames(st_coef))
 
-if (!all(colnames(st_count) %in% rownames(st_coef))) {
-  stop("Spot barcodes found in the Visium matrix are missing from celltype_predictions.csv")
+common_cells <- intersect(colnames(st_count), rownames(st_coef))
+if (length(common_cells) == 0) {
+  stop("No overlapping spot barcodes between Visium matrix and celltype_predictions.csv")
 }
-
-st_coef <- st_coef[colnames(st_count), , drop = FALSE]
+missing_in_deconv <- setdiff(colnames(st_count), rownames(st_coef))
+if (length(missing_in_deconv) > 0) {
+  warning(
+    "Dropping ", length(missing_in_deconv),
+    " spot(s) present in the matrix but absent from celltype_predictions.csv"
+  )
+}
+st_count <- st_count[, common_cells, drop = FALSE]
+st_coef <- st_coef[common_cells, , drop = FALSE]
 predicted_labels <- colnames(st_coef)[apply(st_coef, 1, which.max)]
 meta <- data.frame(labels = predicted_labels, row.names = rownames(st_coef))
 unique(meta$labels) # check the cell labels
@@ -88,14 +97,14 @@ cellchat <- createCellChat(object = data.input, meta = meta, group.by = "labels"
                            datatype = "spatial", coordinates = spatial.locs, scale.factors = scale.factors)
 
 # Set the ligand-receptor interaction database：仅使用 combo_only.csv 中的 1610 对
-bc1_root <- normalizePath(file.path(script_dir, "..", "..", "..", ".."))
-combo_path <- file.path(bc1_root, "2.LR_Screening",
+dataset_root <- normalizePath(file.path(script_dir, "..", "..", "..", ".."))
+combo_path <- file.path(dataset_root, "2.LR_Screening",
                         "3.Identify sensitive genes and gene combinations",
                         "3.Subnetwork exploration", "combo_only.csv")
 if (!file.exists(combo_path)) {
   stop("combo_only file not found: ", combo_path)
 }
-combo_df <- read_csv(combo_path, show_col_types = FALSE, col_types = cols())
+combo_df <- read_csv(combo_path, col_names = "combo", show_col_types = FALSE)
 combo_parsed <- combo_df %>%
   tidyr::separate(combo, into = c("ligand_part", "receptor_part"), sep = "\\|") %>%
   mutate(

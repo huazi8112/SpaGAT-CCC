@@ -9,8 +9,21 @@ library(tibble)
 library(dplyr)
 library(tidyr)
 
-dataset_root <- "D:/GitHub Code/SpaGAT-CCC/giotto_seqfish"
-script_dir <- file.path(dataset_root, "5.Results/OtherMethods/CytoSignal")
+script_dir <- local({
+  cmd <- commandArgs(trailingOnly = FALSE)
+  idx <- grep("^--file=", cmd)
+  file_arg <- if (length(idx)) sub("^--file=", "", cmd[idx[1]]) else ""
+  if (nzchar(file_arg)) {
+    dirname(normalizePath(file_arg))
+  } else {
+    src_file <- tryCatch(
+      normalizePath(sys.frames()[[1]]$ofile),
+      error = function(e) ""
+    )
+    if (nzchar(src_file)) dirname(src_file) else normalizePath(getwd())
+  }
+})
+dataset_root <- normalizePath(file.path(script_dir, "..", "..", ".."))
 source(file.path(script_dir, "getIntrValue"))
 
 benchmark_root <- file.path(dataset_root, "5.Results")
@@ -22,7 +35,7 @@ data_root <- file.path(benchmark_root, "OtherMethods", "InputData")
 seqfish_dir <- file.path(data_root, "seqfish")
 combo_subset_dir <- file.path(seqfish_dir, "combo_subset_A3")
 expression_path <- file.path(combo_subset_dir, "cortex_svz_expression_combo.txt")
-coords_path <- file.path(data_root, "V3-20260309_100949", "stage0_giotto_setup", "de_coords_matched.csv")
+coords_path <- file.path(dataset_root, "1.Preprocessing", "de_coords_matched.csv")
 
 combo_path <- file.path(
   dataset_root,
@@ -32,7 +45,12 @@ combo_path <- file.path(
 
 ptm = Sys.time()
 
-combo_data <- read_csv(combo_path, show_col_types = FALSE)
+combo_lines <- read_lines(combo_path)
+if (length(combo_lines) > 0 && tolower(trimws(combo_lines[1])) == "combo") {
+  combo_lines <- combo_lines[-1]
+}
+combo_lines <- combo_lines[grepl("\\|", combo_lines)]
+combo_data <- tibble(combo = combo_lines)
 cat("Loaded", nrow(combo_data), "L-R pairs from combo_only file\n")
 
 # Parse combo_only: keep sender/receiver, but use pure gene symbols for CytoSignal DB

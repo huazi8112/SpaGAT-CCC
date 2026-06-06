@@ -245,26 +245,27 @@ def draw_benchmark_workflow(ax):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # 与各数据集 eval_other_methods.py 终端输出一致（顺序：stMLnet, CellChatV2, COMMOT, CytoSignal, SpaGAT-CCC）
+# terminals 5.txt (BC1), 6.txt (BC2), 7.txt (seqFISH)
 PERFORMANCE_BENCH_DATA = {
         "ROC-AUC": {
             "BC1":     [0.5101, 0.7284, 0.6596, 0.4853, 0.9034],
-            "BC2":     [0.1766, 0.0463, 0.5534, 0.1393, 0.3546],
-            "seqFISH": [0.1712, 0.3169, 0.7648, 0.1855, 0.8296],
+            "BC2":     [0.1766, 0.4060, 0.6757, 0.3869, 0.3546],
+            "seqFISH": [0.1731, 0.2658, 0.7279, 0.2655, 0.8296],
         },
         "PR-AUC": {
             "BC1":     [0.0144, 0.1760, 0.5815, 0.0253, 0.9475],
-            "BC2":     [0.0161, 0.3083, 0.7910, 0.2668, 0.8443],
-            "seqFISH": [0.0462, 0.5093, 0.8754, 0.0664, 0.9117],
+            "BC2":     [0.0161, 0.3325, 0.7595, 0.2197, 0.8443],
+            "seqFISH": [0.0451, 0.4577, 0.7662, 0.0313, 0.9117],
         },
         "Precision": {
             "BC1":     [0.0080, 0.0060, 0.2680, 0.0100, 0.6360],
-            "BC2":     [0.0260, 0.4960, 0.7260, 0.4200, 0.8700],
-            "seqFISH": [0.0780, 0.5460, 0.6080, 0.1120, 0.6060],
+            "BC2":     [0.0260, 0.3025, 0.5500, 0.2700, 0.8700],
+            "seqFISH": [0.0760, 0.4960, 0.5380, 0.0480, 0.6060],
         },
         "Recall": {
             "BC1":     [0.0111, 0.0083, 0.3712, 0.0139, 0.8809],
-            "BC2":     [0.0170, 0.3242, 0.4745, 0.2745, 0.5686],
-            "seqFISH": [0.1137, 0.7959, 0.8863, 0.1633, 0.8834],
+            "BC2":     [0.0170, 0.0471, 0.3595, 0.1765, 0.5686],
+            "seqFISH": [0.1111, 0.7251, 0.7865, 0.0702, 0.8860],
         },
 }
 
@@ -347,16 +348,16 @@ def draw_methods_table(ax):
     functionalities = [
         "Spatial\ninformation",
         "Intercellular\nsignaling",
-        "Intracellular\nsignaling",
         "Multilayer",
-        "Feedback\nloop",
+        "Dynamic\nsensitivity",
+        "Graph\nattention",
     ]
     table = {
         "CellChatV2":  [True,  True,  False, False, False],
-        "COMMOT":      [True,  True,  False, True,  False],
+        "COMMOT":      [True,  True,  True,  False, False],
         "CytoSignal":  [True,  True,  False, False, False],
-        "stMLnet":     [True,  True,  True,  True,  True],
-        "SpaGAT-CCC":  [True,  True,  True,  True,  True],
+        "stMLnet":     [True,  True,  True,  False, False],
+        "SpaGAT-CCC":  [True,  True,  True,  True,  True ],
     }
 
     n_methods = len(methods)

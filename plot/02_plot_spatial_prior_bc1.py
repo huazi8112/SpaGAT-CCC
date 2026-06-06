@@ -31,12 +31,18 @@ apply_paper_style()
 SCRIPT_DIR = pathlib.Path(__file__).resolve().parent
 BC1_ROOT = SCRIPT_DIR.parent / "BreastCancer1"
 SCORES_CSV = BC1_ROOT / "3.LR_Scoring" / "LR_scores_all_pairs_V0_meta_gpu.csv"
-COMBO_CSV = BC1_ROOT / "4.Model_Training" / "combo_only.csv"
+COMBO_CSV = (
+    BC1_ROOT
+    / "2.LR_Screening"
+    / "3.Identify sensitive genes and gene combinations"
+    / "3.Subnetwork exploration"
+    / "combo_only.csv"
+)
 OUT_DIR = SCRIPT_DIR
 FIG_TYPE_ID = "02"
 
 scores_df = pd.read_csv(SCORES_CSV)
-combo_df = pd.read_csv(COMBO_CSV)
+combo_df = pd.read_csv(COMBO_CSV, header=None, names=["combo"])
 combo_set = set(combo_df["combo"].dropna().str.strip())
 
 combo_scores = scores_df[scores_df["pair"].isin(combo_set)].copy()

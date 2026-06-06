@@ -44,7 +44,7 @@ cellchat_out <- file.path(cellchat_result_dir, "result_combo_only.csv")
 commot_out <- file.path(commot_result_dir, "result_combo_only.csv")
 
 # 1) Load combo definitions (1610 rows)
-combo_df <- read_csv(combo_path, show_col_types = FALSE, col_types = cols()) %>%
+combo_df <- read_csv(combo_path, col_names = "combo", show_col_types = FALSE) %>%
   separate(combo, into = c("ligand_part", "receptor_part"), sep = "\\|") %>%
   mutate(
     Ligand   = sub("__.*", "", ligand_part),

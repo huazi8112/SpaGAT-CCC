@@ -31,6 +31,7 @@ _DATA_PREPROC = (
 MAT_WAVELET_L = _DATA_PREPROC / "t_wavelet-all-L.mat"
 MAT_WAVELET_R = _DATA_PREPROC / "t_wavelet-all-R.mat"
 OUT_FIG = SCRIPT_DIR / "S05_threshold_sensitivity.png"
+OUT_EPS = SCRIPT_DIR / "S05_threshold_sensitivity.eps"
 
 for _p in (MAT_WAVELET_L, MAT_WAVELET_R):
     if not _p.is_file():
@@ -359,4 +360,9 @@ plt.savefig(
     pad_inches=0.55, facecolor='white',
 )
 print(f'Figure saved → {OUT_FIG}')
+plt.savefig(
+    OUT_EPS, format='eps', bbox_inches='tight',
+    pad_inches=0.55, facecolor='white',
+)
+print(f'Figure saved → {OUT_EPS}')
 plt.show()

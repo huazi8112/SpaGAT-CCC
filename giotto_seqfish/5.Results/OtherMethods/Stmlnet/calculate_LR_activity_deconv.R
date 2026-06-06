@@ -18,9 +18,22 @@ library(dplyr)
 library(readr)
 library(Matrix)
 
-# Set paths
-dataset_root <- "D:/GitHub Code/SpaGAT-CCC/giotto_seqfish"
-script_dir <- file.path(dataset_root, "5.Results/OtherMethods/Stmlnet")
+# Set paths (relative to this script)
+script_dir <- local({
+  cmd <- commandArgs(trailingOnly = FALSE)
+  idx <- grep("^--file=", cmd)
+  file_arg <- if (length(idx)) sub("^--file=", "", cmd[idx[1]]) else ""
+  if (nzchar(file_arg)) {
+    dirname(normalizePath(file_arg))
+  } else {
+    src_file <- tryCatch(
+      normalizePath(sys.frames()[[1]]$ofile),
+      error = function(e) ""
+    )
+    if (nzchar(src_file)) dirname(src_file) else normalizePath(getwd())
+  }
+})
+dataset_root <- normalizePath(file.path(script_dir, "..", "..", ".."))
 
 ligand_file <- file.path(dataset_root, "3.LR_Scoring", "ligand_expr_by_cell_filtered-A3.csv")
 receptor_file <- file.path(dataset_root, "3.LR_Scoring", "receptor_expr_by_cell_filtered-A3.csv")
@@ -83,7 +96,7 @@ cat("  Spots with coordinates:", nrow(coords_df), "\n")
 
 # Load L-R pairs
 cat("  Loading L-R pairs from combo_only...\n")
-combo_df <- read_csv(combo_file, show_col_types = FALSE)
+combo_df <- read_csv(combo_file, col_names = "combo", show_col_types = FALSE)
 combo_df$ligand <- sapply(strsplit(combo_df$combo, "\\|"), `[`, 1)
 combo_df$receptor <- sapply(strsplit(combo_df$combo, "\\|"), `[`, 2)
 

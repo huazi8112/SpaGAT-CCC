@@ -14,9 +14,22 @@ gc()
 # Allow large globals to be shipped to future workers (CellChat exports a big Seurat object)
 options(future.globals.maxSize = 16 * 1024^3)
 
-dataset_root <- "D:/GitHub Code/SpaGAT-CCC/BreastCancer2"
+script_dir <- local({
+  cmd <- commandArgs(trailingOnly = FALSE)
+  idx <- grep("^--file=", cmd)
+  file_arg <- if (length(idx)) sub("^--file=", "", cmd[idx[1]]) else ""
+  if (nzchar(file_arg)) {
+    dirname(normalizePath(file_arg))
+  } else {
+    src_file <- tryCatch(
+      normalizePath(sys.frames()[[1]]$ofile),
+      error = function(e) ""
+    )
+    if (nzchar(src_file)) dirname(src_file) else normalizePath(getwd())
+  }
+})
+dataset_root <- normalizePath(file.path(script_dir, "..", "..", ".."))
 benchmark_root <- file.path(dataset_root, "5.Results")
-script_dir <- file.path(benchmark_root, "OtherMethods/CellChatV2")
 
 visium_dir <- file.path(benchmark_root, "OtherMethods", "InputData", "Parent_Visium_Human_BreastCancer")
 preprocess_dir <- file.path(benchmark_root, "OtherMethods", "InputData", "preprocess")
@@ -34,11 +47,32 @@ st_decomp <- read_csv(file.path(preprocess_dir, "celltype_predictions.csv"), sho
 st_coef <- as.data.frame(t(st_decomp))
 colnames(st_coef) <- gsub('\\.', '_', colnames(st_coef))
 
-if (!all(colnames(st_count) %in% rownames(st_coef))) {
-  stop("Spot barcodes found in the Visium matrix are missing from celltype_predictions.csv")
+common_cells <- intersect(colnames(st_count), rownames(st_coef))
+if (length(common_cells) == 0) {
+  stop("No overlapping spot barcodes between Visium matrix and celltype_predictions.csv")
+}
+missing_in_deconv <- setdiff(colnames(st_count), rownames(st_coef))
+if (length(missing_in_deconv) > 0) {
+  warning(
+    "Dropping ", length(missing_in_deconv),
+    " spot(s) present in the matrix but absent from celltype_predictions.csv"
+  )
+}
+st_count <- st_count[, common_cells, drop = FALSE]
+st_coef <- st_coef[common_cells, , drop = FALSE]
+
+# BC2 combo 子矩阵特有：部分 spot 在 274 个 combo 基因上 count 全为 0，
+# SCTransform 的 log_umi = log10(colSums) 会得到 -Inf 并报错（BC1 矩阵无此问题）。
+nonzero_spots <- colSums(st_count) > 0
+if (any(!nonzero_spots)) {
+  warning(sprintf(
+    "%d spot(s) removed: zero total counts in combo-gene matrix (required for SCTransform).",
+    sum(!nonzero_spots)
+  ))
+  st_count <- st_count[, nonzero_spots, drop = FALSE]
+  st_coef <- st_coef[colnames(st_count), , drop = FALSE]
 }
 
-st_coef <- st_coef[colnames(st_count), , drop = FALSE]
 predicted_labels <- colnames(st_coef)[apply(st_coef, 1, which.max)]
 meta <- data.frame(labels = predicted_labels, row.names = rownames(st_coef))
 unique(meta$labels) # check the cell labels
@@ -86,7 +120,7 @@ combo_path <- normalizePath(file.path(
 if (!file.exists(combo_path)) {
   stop("combo_only file not found: ", combo_path)
 }
-combo_df <- read_csv(combo_path, show_col_types = FALSE, col_types = cols())
+combo_df <- read_csv(combo_path, col_names = "combo", show_col_types = FALSE)
 combo_parsed <- combo_df %>%
   tidyr::separate(combo, into = c("ligand_part", "receptor_part"), sep = "\\|") %>%
   mutate(
@@ -152,7 +186,7 @@ if ("interaction.range" %in% names(formals(CellChat::computeCommunProb))) {
 }
 cellchat <- do.call(CellChat::computeCommunProb, compute_args)
 # Filter out the cell-cell communication if there are only few number of cells in certain cell groups
-cellchat <- filterCommunication(cellchat, min.cells = 10)
+cellchat <- filterCommunication(cellchat, min.cells = 1)
 # Infer the cell-cell communication at a signaling pathway level
 # Skipping computeCommunProbPathway because our custom DB only has one pathway; CellChat 2.x drops the
 # pathway dimension in that case and aperm() fails with "'perm' length 3 (!= 2)".
@@ -160,9 +194,9 @@ cellchat <- filterCommunication(cellchat, min.cells = 10)
 # cellchat <- computeCommunProbPathway(cellchat)
 # Calculate the aggregated cell-cell communication network
 # cellchat <- aggregateNet(cellchat)
-result_raw <- subsetCommunication(cellchat, slot.name = "net")
+result_raw <- subsetCommunication(cellchat, slot.name = "net", thresh = 1)
 
-# 构造 key 并左连接 1610 组合，缺失补 0 分
+# 构造 key 并左连接 combo 列表，缺失补 0 分
 result_raw$key_combo <- paste0(result_raw$ligand, "__", result_raw$source, "|", result_raw$receptor, "__", result_raw$target)
 combo_table <- combo_parsed %>%
   transmute(Sender = sender, Receiver = receiver, Ligand = ligand, Receptor = receptor,
@@ -197,8 +231,3 @@ if (!dir.exists(result_dir)) {
 
 saveRDS(result_record, file = file.path(result_dir, "result.rds"))
 result_record <- result
-
-
-
-
-

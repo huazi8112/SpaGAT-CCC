@@ -32,8 +32,8 @@ script_dir <- if (nzchar(file_arg)) {
   if (nzchar(src_file)) dirname(src_file) else normalizePath(getwd())
 }
 input_data <- normalizePath(file.path(script_dir, "..", "InputData"))
-bc1_root <- normalizePath(file.path(script_dir, "..", "..", "..", ".."))
-lr_scoring_dir <- file.path(bc1_root, "3.LR_Scoring")
+dataset_root <- normalizePath(file.path(script_dir, "..", "..", "..", ".."))
+lr_scoring_dir <- file.path(dataset_root, "3.LR_Scoring")
 
 ligand_file <- file.path(input_data, "runModel", "ligand_expr_by_cell_filtered.csv")
 if (!file.exists(ligand_file)) {
@@ -52,7 +52,7 @@ if (!file.exists(receptor_file)) {
        receptor_file)
 }
 
-combo_file <- file.path(bc1_root, "2.LR_Screening",
+combo_file <- file.path(dataset_root, "2.LR_Screening",
                         "3.Identify sensitive genes and gene combinations",
                         "3.Subnetwork exploration", "combo_only.csv")
 coords_file <- file.path(input_data, "de_coords.csv")
@@ -109,7 +109,7 @@ cat("  Spots with coordinates:", nrow(coords_df), "\n")
 
 # Load L-R pairs
 cat("  Loading L-R pairs from combo_only...\n")
-combo_df <- read_csv(combo_file, show_col_types = FALSE)
+combo_df <- read_csv(combo_file, col_names = "combo", show_col_types = FALSE)
 combo_df$ligand <- sapply(strsplit(combo_df$combo, "\\|"), `[`, 1)
 combo_df$receptor <- sapply(strsplit(combo_df$combo, "\\|"), `[`, 2)
 

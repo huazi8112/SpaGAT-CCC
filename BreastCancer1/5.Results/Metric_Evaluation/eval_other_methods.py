@@ -165,25 +165,26 @@ def load_known_pairs(path: str, nrows: int = 361) -> pd.DataFrame:
     known["label"] = 1
     known["key_dir"] = known["Cell1"] + "||" + known["Cell2"]
     known["key_ud"] = known.apply(lambda r: "||".join(sorted([r.Cell1, r.Cell2])), axis=1)
+    known = known.drop_duplicates(subset=["key_dir"]).reset_index(drop=True)
     return known
 
 
 def attach_labels_and_score(pred: pd.DataFrame, known: pd.DataFrame) -> pd.DataFrame:
     # Evaluation set = each method's Top-K predictions only (no union with positives).
     # A row's label is 1 iff it appears in the validated positives, else 0.
-    labels = pred[["key_ud", "score"]].copy()
-    known_keys = set(known["key_ud"].tolist())
-    labels["label"] = labels["key_ud"].isin(known_keys).astype(int)
+    labels = pred[["key_dir", "score"]].copy()
+    known_keys = set(known["key_dir"].tolist())
+    labels["label"] = labels["key_dir"].isin(known_keys).astype(int)
     return labels
 
 
 def attach_labels_union(pred: pd.DataFrame, known: pd.DataFrame) -> pd.DataFrame:
     """Union of predicted keys and known positives; missing scores filled with 0."""
-    all_keys = pd.unique(pd.concat([pred["key_ud"], known["key_ud"]], ignore_index=True))
-    labels = pd.DataFrame({"key_ud": all_keys})
-    labels = labels.merge(known[["key_ud", "label"]], on="key_ud", how="left")
+    all_keys = pd.unique(pd.concat([pred["key_dir"], known["key_dir"]], ignore_index=True))
+    labels = pd.DataFrame({"key_dir": all_keys})
+    labels = labels.merge(known[["key_dir", "label"]], on="key_dir", how="left")
     labels["label"] = labels["label"].fillna(0)
-    labels = labels.merge(pred[["key_ud", "score"]], on="key_ud", how="left").fillna(0)
+    labels = labels.merge(pred[["key_dir", "score"]], on="key_dir", how="left").fillna(0)
     return labels
 
 
@@ -194,7 +195,7 @@ def report_metrics(name: str, labels: pd.DataFrame, known: pd.DataFrame, pred: p
     overlap = int(labels["label"].sum())
     print(f"[{name}] 已验证正例={pos_total}, Top-{pred_total} 预测边={pred_total}, 命中的正例数={overlap}")
     if overlap == 0:
-        missing = known.loc[~known["key_ud"].isin(pred["key_ud"])]
+        missing = known.loc[~known["key_dir"].isin(pred["key_dir"])]
         print(f"[{name}] 警告：Top-{pred_total} 未命中任何正例，可能是命名或方向不一致。示例前5条未命中：")
         print(missing.head(5))
 
@@ -296,6 +297,7 @@ def load_pred_scores(path: Path, topk: int = 500) -> pd.DataFrame:
     pred = pred.rename(columns={score_col: "score"})
     pred["Cell1"] = pred["Cell1"].astype(str).str.strip()
     pred["Cell2"] = pred["Cell2"].astype(str).str.strip()
+    pred["key_dir"] = pred["Cell1"] + "||" + pred["Cell2"]
     pred["key_ud"] = pred.apply(lambda r: "||".join(sorted([r.Cell1, r.Cell2])), axis=1)
     pred = pred.sort_values("score", ascending=False).head(topk).reset_index(drop=True)
     return pred
@@ -317,14 +319,14 @@ def normalize_pred_with_celltype(df: pd.DataFrame, sender_col: str, receiver_col
 def _scores_on_frame(frame: pd.DataFrame, pred: pd.DataFrame) -> np.ndarray:
     """Return a score vector aligned to *frame* (0 for keys absent in pred)."""
     pred_dedup = (
-        pred[["key_ud", "score"]]
-        .groupby("key_ud", as_index=False)["score"]
+        pred[["key_dir", "score"]]
+        .groupby("key_dir", as_index=False)["score"]
         .max()
     )
-    merged = frame[["key_ud"]].merge(pred_dedup, on="key_ud", how="left")
+    merged = frame[["key_dir"]].merge(pred_dedup, on="key_dir", how="left")
     assert len(merged) == len(frame), (
         f"_scores_on_frame: merge expanded ({len(merged)} vs {len(frame)}). "
-        "Check for duplicate key_ud in pred after dedup."
+        "Check for duplicate key_dir in pred after dedup."
     )
     return merged["score"].fillna(0).values
 

@@ -104,17 +104,22 @@ print(adata_dis500)
 db_name = 'custom'
 
 # load custom LR list (1610 combos): format Ligand__Sender|Receptor__Receiver
-bc1_root = base_dir.parent.parent.parent.parent
-combo_path = (bc1_root / "2.LR_Screening"
+dataset_root = base_dir.parent.parent.parent.parent
+combo_path = (dataset_root / "2.LR_Screening"
               / "3.Identify sensitive genes and gene combinations"
               / "3.Subnetwork exploration" / "combo_only.csv")
 if not combo_path.exists():
     raise FileNotFoundError(f"Custom LR list not found: {combo_path}")
 combo_df = pd.read_csv(combo_path)
+if "combo" not in combo_df.columns:
+    combo_df = pd.read_csv(combo_path, header=None, names=["combo"])
+if len(combo_df) and str(combo_df.iloc[0]["combo"]).strip().lower() == "combo":
+    combo_df = combo_df.iloc[1:].reset_index(drop=True)
+combo_df = combo_df[combo_df["combo"].astype(str).str.contains("|", na=False)].reset_index(drop=True)
 ligands = []
 receptors = []
 for combo in combo_df['combo']:
-    ligand_part, receptor_part = combo.split('|')
+    ligand_part, receptor_part = str(combo).split('|', 1)
     ligands.append(ligand_part.split('__')[0])
     receptors.append(receptor_part.split('__')[0])
 

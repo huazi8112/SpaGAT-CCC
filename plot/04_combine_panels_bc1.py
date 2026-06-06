@@ -30,6 +30,7 @@ matplotlib.rcParams['axes.unicode_minus'] = False
 PLOT_DIR = pathlib.Path(__file__).resolve().parent
 BASE = PLOT_DIR.parent
 LR_DIR      = BASE / 'BreastCancer1' / '2.LR_Screening'
+NETWORK_DIR = LR_DIR / '2.Build a gene network'
 ENTROPY_DIR = LR_DIR / '3.Identify sensitive genes and gene combinations' / \
               '1.Initial network entropy index calculation'
 DISTURB_DIR = LR_DIR / '3.Identify sensitive genes and gene combinations' / \
@@ -55,7 +56,7 @@ _NEW_NAME_R_MAT = f"new_name-R{THRESHOLD:.2f}.mat"
 # ============================================================================
 def _draw_A(subfig, top_k: int = 10):
     print("[A] Building GRN network …")
-    prewavelet    = sio.loadmat(str(ENTROPY_DIR / 'prewavelet-L.mat'))
+    prewavelet    = sio.loadmat(str(NETWORK_DIR / 'prewavelet-L.mat'))
     new_name_data = sio.loadmat(str(SUBNET_DIR / _NEW_NAME_L_MAT))
     adj_df        = pd.read_excel(
         str(LR_DIR / '2.Build a gene network' / 'L-averaged_final_adj-.xlsx'),
@@ -273,7 +274,7 @@ def _draw_A(subfig, top_k: int = 10):
 def _draw_B(subfig):
     print("[B] Plotting mean prediction error …")
     d  = sio.loadmat(str(ENTROPY_DIR / 'error-L.mat'))
-    pw = sio.loadmat(str(ENTROPY_DIR / 'prewavelet-L.mat'))
+    pw = sio.loadmat(str(NETWORK_DIR / 'prewavelet-L.mat'))
 
     delta = d['delta_record'].T
     n_gene, n_time = delta.shape
@@ -305,7 +306,7 @@ def _draw_B(subfig):
 # ============================================================================
 def _draw_C(subfig):
     print("[C] Plotting butterfly chart …")
-    pre  = sio.loadmat(str(DISTURB_DIR / 'prewavelet-L.mat'))
+    pre  = sio.loadmat(str(NETWORK_DIR / 'prewavelet-L.mat'))
     addu = sio.loadmat(str(DISTURB_DIR / 'adduwavelet-100-(all)-L-merged.mat'))
 
     names = [str(pre["name"][i, 0][0]) for i in range(pre["name"].shape[0])]
@@ -404,8 +405,8 @@ def _draw_D(subfig):
         return []
 
     def threshold_scan(layer):
-        hp  = sio.loadmat(str(SUBNET_DIR / f"adduwavelet-100-(all)-{layer}-merged.mat"))
-        pre = sio.loadmat(str(SUBNET_DIR / f"prewavelet-{layer}.mat"))
+        hp  = sio.loadmat(str(DISTURB_DIR / f"adduwavelet-100-(all)-{layer}-merged.mat"))
+        pre = sio.loadmat(str(NETWORK_DIR / f"prewavelet-{layer}.mat"))
         H      = np.array(hp["H_point_value"])
         maprho = np.array(pre["maprho"])
         thresholds = np.round(np.arange(0.20, 0.401, 0.003), 3)
@@ -537,8 +538,8 @@ def _load_prewavelet(mat_path):
 
 def _draw_F(subfig):
     print("[F] Plotting expression curves …")
-    names_L_all, Rec_L = _load_prewavelet(ENTROPY_DIR / 'prewavelet-L.mat')
-    names_R_all, Rec_R = _load_prewavelet(ENTROPY_DIR / 'prewavelet-R.mat')
+    names_L_all, Rec_L = _load_prewavelet(NETWORK_DIR / 'prewavelet-L.mat')
+    names_R_all, Rec_R = _load_prewavelet(NETWORK_DIR / 'prewavelet-R.mat')
     sens_L = set(_load_sensitive_names(SUBNET_DIR / _NEW_NAME_L_MAT))
     sens_R = set(_load_sensitive_names(SUBNET_DIR / _NEW_NAME_R_MAT))
 
