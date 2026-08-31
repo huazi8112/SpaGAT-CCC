@@ -9,7 +9,7 @@ load(fullfile(script_dir, '..', '2.Disturbance handling', 'adduwavelet-100-(all)
 load(fullfile(script_dir, '..', '..', '2.Build a gene network', 'prewavelet-R.mat'));
 
 % Filter genes below threshold
-new_point = find(mean(H_point_value,2)<0.254);
+new_point = find(mean(H_point_value,2)<0.6);
 new_name = name(new_point);
 
 % Filter non-zero connections

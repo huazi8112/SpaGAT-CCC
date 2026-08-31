@@ -342,8 +342,15 @@ def _draw_B(subfig):
 
     subfig.set_facecolor('white')
     ax = subfig.add_subplot(1, 1, 1)
-    ax.fill_between(t, mean_t - std_t, mean_t + std_t, alpha=0.25, color='#E53935')
-    ax.plot(t, mean_t, color='#E53935', linewidth=1.5)
+    # EPS 不支持 alpha；用浅色实色带代替半透明，避免盖住均值线
+    ax.fill_between(
+        t, mean_t - std_t, mean_t + std_t,
+        color='#FFCDD2', zorder=2,
+    )
+    ax.plot(
+        t, mean_t, color='#C62828', linewidth=2.4,
+        zorder=5, solid_capstyle='round',
+    )
     ax.set_xlabel('Time window', fontsize=22)
     ax.set_ylabel('Mean Δ', fontsize=22)
     ax.set_title('Mean prediction error across all genes  —  L ligands (A3)',

@@ -35,12 +35,31 @@ def _load_main_module():
 
 def main():
     mod = _load_main_module()
-    # x 轴实际标签数由主模块 draw_dotplot 内 _MAX_X_LABELS 控制（默认 4）
-    _MAX_X_LABELS = 10
-    fig_w = max(22.0, _MAX_X_LABELS * 1.35 + 8.0)
+
+    # Mirror draw_dotplot's internal filter to get the exact ordered CT-pair list
+    _df = mod.df.copy()
+    _df["LRPair"] = _df["Ligand"] + " - " + _df["Receptor"]
+    _df["CTPair"] = _df["Sender"] + " \u2192 " + _df["Receiver"]
+    _top_lr = _df.groupby("LRPair")["Score"].max().nlargest(mod.TOP_N_LR).index
+    _top = _df[_df["LRPair"].isin(_top_lr)]
+    ct_pairs_ordered = (
+        _top.groupby("CTPair")["Score"].sum()
+        .sort_values(ascending=False).index.tolist()
+    )
+    n_ct = len(ct_pairs_ordered)
+
+    fig_w = max(22.0, n_ct * 1.35 + 8.0)
     fig_h = 28.0
     fig, ax = plt.subplots(figsize=(fig_w, fig_h), dpi=300, facecolor="white")
     mod.draw_dotplot(ax, mod.df, top_n=mod.TOP_N_LR)
+
+    # Override x-axis: show every CT-pair label (draw_dotplot may sample to ~10)
+    ax.set_xticks(range(n_ct))
+    ax.set_xticklabels(
+        ct_pairs_ordered, rotation=90, ha="center", va="top",
+        fontsize=FS.TICK, fontweight="bold",
+    )
+    ax.tick_params(axis="x", which="major", length=4, pad=6)
 
     ax.set_title(
         "High-Confidence Spatial LR Pairs",
@@ -58,7 +77,7 @@ def main():
         out_eps, format="eps", bbox_inches="tight", facecolor="white", pad_inches=0.22
     )
     plt.close(fig)
-    print(f"[DONE] {out_png}  (x labels shown: {_MAX_X_LABELS})")
+    print(f"[DONE] {out_png}  (all {n_ct} CT-pair x labels shown)")
     print(f"[DONE] {out_eps}")
 
 
